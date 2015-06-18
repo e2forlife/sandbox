@@ -286,6 +286,9 @@ cystatus `$INSTANCE_NAME`_GetString(char *str)
 	char ch;
 	int idx;
 	
+	/* Process queue'd I/O over the USB port */
+	`$INSTANCE_NAME`_Idle();
+	
 	result = CYRET_STARTED;
 	idx = strlen( str );
 	while (
