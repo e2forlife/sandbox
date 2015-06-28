@@ -343,4 +343,34 @@ void `$INSTANCE_NAME`_ClearRxBuffer( void )
 	`$INSTANCE_NAME`_RxLength = 0;
 }
 /* ------------------------------------------------------------------------- */
+/*
+ * scan key, and process escape sequences for command keys.
+ */
+uint16 `$INSTANCE_NAME`_GetKey( void )
+{
+	uint16 result;
+	char ch;
+	
+	`$INSTANCE_NAME`_Idle();
+	result = 0;
+	if (`$INSTANCE_NAME`_RxLength > 0) {
+		ch = `$INSTANCE_NAME`_GetChar();
+		if (ch == '\x1b') {
+			ch = `$INSTANCE_NAME`_GetChar(); /* wait for bracket */
+			if (ch == '[') {
+				do {
+					ch = `$INSTANCE_NAME`_GetChar(); /* Get command */
+				}
+				while ( !isalpha(ch) );
+				result = (uint16) ch;
+				result |= `$INSTANCE_NAME`_KEY_CTRL;
+			}
+		}
+		else {
+			result = ch;
+		}
+	}
+	return result;
+}
+/* ------------------------------------------------------------------------- */
 /* [] END OF FILE */

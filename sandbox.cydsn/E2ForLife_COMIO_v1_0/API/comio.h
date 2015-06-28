@@ -52,6 +52,7 @@ cystatus `$INSTANCE_NAME`_GetString( char *str );
 void `$INSTANCE_NAME`_ClearFifo( void );
 void `$INSTANCE_NAME`_ClearTxBuffer( void );
 void `$INSTANCE_NAME`_ClearRxBuffer( void );
+uint16 `$INSTANCE_NAME`_GetKey( void );
 
 #define `$INSTANCE_NAME`_HideCursor        ( `$INSTANCE_NAME`_PutString("\x1b[?25l") )
 #define `$INSTANCE_NAME`_ShowCursor        ( `$INSTANCE_NAME`_PutString("\x1b[?25h") )
@@ -64,21 +65,15 @@ void `$INSTANCE_NAME`_ClearRxBuffer( void );
 #define `$INSTANCE_NAME`_BUFFER_LEN   ( 64u )
 #define `$INSTANCE_NAME`_RX_SIZE      ( `$RX_SIZE` )
 #define `$INSTANCE_NAME`_TX_SIZE      ( `$TX_SIZE` )
-	
-/*
- * type define for an action function callback used for UI/UX processing
- */
-typedef void (*`$INSTANCE_NAME`_Action)( void );
 
-/*
- * declare a command table to associate command strings with the action
- * function callbacks for processing the UI/UX commands.
- */
-typedef struct {
-	char cmd[15];
-	`$INSTANCE_NAME`_Action callback;
-} `$INSTANCE_NAME`_ActionTable;
+/* ------------------------------------------------------------------------ */
+#define `$INSTANCE_NAME`_KEY_UP         ( 'A' )
+#define `$INSTANCE_NAME`_KEY_DOWN       ( 'B' )
+#define `$INSTANCE_NAME`_KEY_LEFT       ( 'D' )
+#define `$INSTANCE_NAME`_KEY_RIGHT      ( 'C' )
 
+#define `$INSTANCE_NAME`_KEY_CTRL       ( 0x8000 )
+/* ------------------------------------------------------------------------ */
 
 #endif
 /* [] END OF FILE */
