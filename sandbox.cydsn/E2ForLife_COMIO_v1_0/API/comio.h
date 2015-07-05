@@ -39,20 +39,22 @@
 #define `$INSTANCE_NAME`_USB_MODE        ( `$USING_USB` )
 	
 void `$INSTANCE_NAME`_Start( void );
-	
+#define `$INSTANCE_NAME`_Enable           `$INSTANCE_NAME`_Idle
+void `$INSTNACE_NAME`_Init( void );
+
 void `$INSTANCE_NAME`_Idle( void );
 char `$INSTANCE_NAME`_GetChar( void );
 cystatus `$INSTANCE_NAME`_PutChar( char ch );
-cystatus `$INSTANCE_NAME`_PutString( const char *str );
+cystatus `$INSTANCE_NAME`_PrintString( const char *str );
 cystatus `$INSTANCE_NAME`_SetColor( uint8 fg, uint8 bg );
 cystatus `$INSTANCE_NAME`_ClearLine(uint8 mode);
-cystatus `$INSTANCE_NAME`_SetCursor(uint8 row, uint8 col);
-cystatus `$INSTANCE_NAME`_PutStringColor(const char *str, uint8 fg, uint8 bg);
+cystatus `$INSTANCE_NAME`_Position(uint8 row, uint8 col);
+cystatus `$INSTANCE_NAME`_PrintStringColor(const char *str, uint8 fg, uint8 bg);
 cystatus `$INSTANCE_NAME`_GetString( char *str );
 void `$INSTANCE_NAME`_ClearFifo( void );
 void `$INSTANCE_NAME`_ClearTxBuffer( void );
 void `$INSTANCE_NAME`_ClearRxBuffer( void );
-uint16 `$INSTANCE_NAME`_GetKey( void );
+uint16 `$INSTANCE_NAME`_ScanKey( void );
 
 #define `$INSTANCE_NAME`_HideCursor        ( `$INSTANCE_NAME`_PutString("\x1b[?25l") )
 #define `$INSTANCE_NAME`_ShowCursor        ( `$INSTANCE_NAME`_PutString("\x1b[?25h") )

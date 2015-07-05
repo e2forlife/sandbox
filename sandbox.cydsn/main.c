@@ -73,50 +73,50 @@ void drawMap( uint8 *m )
 	int col;
 	int row;
 	
-	COMIO_SetCursor(MAP_ROW,MAP_COL);
+	COMIO_Position(MAP_ROW,MAP_COL);
 	col = MAP_COL;
 	row = MAP_ROW;
 	
 	for(pos=0;pos<256;++pos) {
 		switch(m[pos]) {
 			case TILE_EMPTY:
-				COMIO_PutStringColor("  ",0,0);
+				COMIO_PrintStringColor("  ",0,0);
 				break;
 			case TILE_WALL:
-				COMIO_PutStringColor("  ",15,15);
+				COMIO_PrintStringColor("  ",15,15);
 				break;
 			case TILE_GRASS:
-				COMIO_PutStringColor("\xB0\xB0",2,0);
+				COMIO_PrintStringColor("\xB0\xB0",2,0);
 				break;
 			case TILE_FOREST:
-				COMIO_PutStringColor("\xB2\xB2",2,0);
+				COMIO_PrintStringColor("\xB2\xB2",2,0);
 				break;
 			case TILE_SWAMP:
-				COMIO_PutStringColor("\xB0\xB0",5,0);
+				COMIO_PrintStringColor("\xB0\xB0",5,0);
 				break;
 			case TILE_WATER:
-				COMIO_PutStringColor("\xB0\xB0",12,4);
+				COMIO_PrintStringColor("\xB0\xB0",12,4);
 				break;
 			case TILE_SEA:
-				COMIO_PutStringColor("\xB1\xB1",12,4);
+				COMIO_PrintStringColor("\xB1\xB1",12,4);
 				break;
 			case TILE_DESERT:
-				COMIO_PutStringColor("\xB0\xB0",3,0);
+				COMIO_PrintStringColor("\xB0\xB0",3,0);
 				break;
 			case TILE_HILLS:
-				COMIO_PutStringColor("\xB1\xB2",7,2);
+				COMIO_PrintStringColor("\xB1\xB2",7,2);
 				break;
 			case TILE_MOUNTAIN:
-				COMIO_PutStringColor("^^",15,8);
+				COMIO_PrintStringColor("^^",15,8);
 				break;
 			case TILE_SNOW:
-				COMIO_PutStringColor("\xB1\xB1",14,6);
+				COMIO_PrintStringColor("\xB1\xB1",14,6);
 				break;
 			case TILE_LAVA:
-				COMIO_PutStringColor("\xF7\xF7",11,9);
+				COMIO_PrintStringColor("\xF7\xF7",11,9);
 				break;
 			case TILE_ACID:
-				COMIO_PutStringColor("##",10,2);
+				COMIO_PrintStringColor("##",10,2);
 				break;
 			default:
 				break;
@@ -125,7 +125,7 @@ void drawMap( uint8 *m )
 		if (col >= (MAP_COL+16) ) {
 			++row;
 			col = MAP_COL;
-			COMIO_SetCursor(row,col);
+			COMIO_Position(row,col);
 		}
 	}
 }
@@ -144,19 +144,19 @@ int main()
 	
 	/* wait for a character from the serial stream */
 	COMIO_GetChar();
-	COMIO_PutStringColor("\r\n[Set your terminal for CP833 translation]\r\n",15,0);
-	COMIO_PutStringColor("\r\nPlease press a key to continue...",2,0);
+	COMIO_PrintStringColor("\r\n[Set your terminal for CP833 translation]\r\n",15,0);
+	COMIO_PrintStringColor("\r\nPlease press a key to continue...",2,0);
 	COMIO_GetChar();
-	COMIO_PutStringColor("Building Maps...",15,4);
+	COMIO_PrintStringColor("Building Maps...",15,4);
 	for(scan=0;scan<256;++scan) {
-		COMIO_PutStringColor(".",15,4);
+		COMIO_PrintStringColor(".",15,4);
 		CyDelay(10);
 	}
-	COMIO_SetCursor(1,1);
-	COMIO_PutString("\x1b[2J");
+	COMIO_Position(1,1);
+	COMIO_PrintString("\x1b[2J");
 	for(scan=32;scan<256;++scan) {
 		sprintf(buffer,"\r\n%3d - %2X ( %c )",scan,scan,scan);
-		COMIO_PutStringColor(buffer,2,0);
+		COMIO_PrintStringColor(buffer,2,0);
 		CyDelay(10);
 	}
 	
@@ -165,32 +165,32 @@ int main()
         /* Place your application code here. */
 		COMIO_Idle();
 		
-		scan = COMIO_GetKey();
+		scan = COMIO_ScanKey();
 		if (scan != 0 )	{
 			if (scan&COMIO_KEY_CTRL) {
 				switch(scan&0x00FF) {
 					case COMIO_KEY_UP:
-						COMIO_PutStringColor("\r\nUP\r\n",10,0);
+						COMIO_PrintStringColor("\r\nUP\r\n",10,0);
 						break;
 					case COMIO_KEY_DOWN:
-						COMIO_PutStringColor("\r\nDOWN\r\n",11,0);
+						COMIO_PrintStringColor("\r\nDOWN\r\n",11,0);
 						break;
 					case COMIO_KEY_LEFT:
-						COMIO_PutStringColor("\r\nLEFT\r\n",12,0);
+						COMIO_PrintStringColor("\r\nLEFT\r\n",12,0);
 						break;
 					case COMIO_KEY_RIGHT:
-						COMIO_PutStringColor("\r\nRIGHT\r\n",13,0);
+						COMIO_PrintStringColor("\r\nRIGHT\r\n",13,0);
 						break;
 					default:
-						COMIO_PutStringColor("\r\n[ESC]",14,0);
+						COMIO_PrintStringColor("\r\n[ESC]",14,0);
 						COMIO_PutChar(scan&0x00FF);
-						COMIO_PutString("\r\n");
+						COMIO_PrintString("\r\n");
 						break;
 				}
 			}
 			else {
 				COMIO_PutChar(scan);
-				COMIO_PutString("\xB0\xB1\xB2\r\n");
+				COMIO_PrintString("\xB0\xB1\xB2\r\n");
 			}
 		}
     }
