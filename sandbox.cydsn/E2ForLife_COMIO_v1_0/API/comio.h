@@ -40,7 +40,7 @@
 	
 void `$INSTANCE_NAME`_Start( void );
 #define `$INSTANCE_NAME`_Enable           `$INSTANCE_NAME`_Idle
-void `$INSTNACE_NAME`_Init( void );
+void `$INSTANCE_NAME`_Init( void );
 
 void `$INSTANCE_NAME`_Idle( void );
 char `$INSTANCE_NAME`_GetChar( void );

@@ -69,7 +69,7 @@ void `$INSTANCE_NAME`_Start( void )
 	`$INSTANCE_NAME`_Enable();
 }
 /* ------------------------------------------------------------------------ */
-`$INSTANCE_NAME`_Init( void )
+void `$INSTANCE_NAME`_Init( void )
 {
 	/* Initialize USB Buffers */
 	memset((void*)`$INSTANCE_NAME`_RxQ, 0, `$INSTANCE_NAME`_RX_SIZE + 8);
@@ -385,7 +385,7 @@ uint16 `$INSTANCE_NAME`_ScanKey( void )
 				do {
 					ch = `$INSTANCE_NAME`_GetChar(); /* Get command */
 				}
-				while ( !isalpha(ch) );
+				while ( !isalpha((int)ch) );
 				result = (uint16) ch;
 				result |= `$INSTANCE_NAME`_KEY_CTRL;
 			}
