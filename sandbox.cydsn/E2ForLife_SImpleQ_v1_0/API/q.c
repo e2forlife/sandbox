@@ -28,6 +28,7 @@
 /* ======================================================================== */
 #include <cytypes.h>
 #include <cylib.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "`$INSTANCE_NAME`.h"
@@ -49,39 +50,37 @@ cystatus `$INSTANCE_NAME`_Write(uint8 value, uint8* q)
 	/* Assign the default result to success */
 	result = CYRET_SUCCESS;
 	/* Make sure that the fifo was initialized */
-	if (`$INSTANCE_NAME`_MAX(q) == 0) return CYRET_INVALID_OBJECT;
+	if (`$INSTANCE_NAME`_QMax(q) == 0) return CYRET_INVALID_OBJECT;
 	
-	if (`$INSTANCE_NAME`_SIZE(q) >= `$INSTANCE_NAME`_MAX(q) ) {
+	if (`$INSTANCE_NAME`_QSize(q) >= `$INSTANCE_NAME`_QMax(q) ) {
 		/* FIFO is going to overflow, so drop the oldest data and retry */
-		`$INSTANCE_NAME`_SIZE(q) = `$INSTANCE_NAME`_SIZE(q) - 1;
-		`$INSTANCE_NAME`_READ_PTR(q) = `$INSTANCE_NAME`_READ_PTR(q) + 1;
-		if (`$INSTANCE_NAME`_READ_PTR(q) >= `$INSTANCE_NAME`_MAX(q) ) {
-			`$INSTANCE_NAME`_READ_PTR(q) = 0;
+		`$INSTANCE_NAME`_QSize(q) = `$INSTANCE_NAME`_QSize(q) - 1;
+		`$INSTANCE_NAME`_QReadPtr(q) = `$INSTANCE_NAME`_QReadPtr(q) + 1;
+		if (`$INSTANCE_NAME`_QReadPtr(q) >= `$INSTANCE_NAME`_QMax(q) ) {
+			`$INSTANCE_NAME`_QReadPtr(q) = 0;
 		}
-		result = `$INSTANCE_NAME`_Write(value,q);
-	}
-	else {
-		/* store the valeu in to the FIFO */
-		`$INSTANCE_NAME`_INLINE_WRITE(value,q);
 	}
 	
+	/* store the valeu in to the FIFO */
+	`$INSTANCE_NAME`_INLINE_QWrite(value,q);
+		
 	return result;
 }
 /* ------------------------------------------------------------------------ */
 cystatus `$INSTANCE_NAME`_Read(uint8* value, uint8* q)
 {
-	if (`$INSTANCE_NAME`_MAX(q) == 0) return CYRET_INVALID_OBJECT;	
-	if (`$INSTANCE_NAME`_SIZE(q) == 0) return CYRET_EMPTY; /* No Data */
+	if (`$INSTANCE_NAME`_QMax(q) == 0) return CYRET_INVALID_OBJECT;	
+	if (`$INSTANCE_NAME`_QSize(q) == 0) return CYRET_EMPTY; /* No Data */
 	
 	/*
 	 * read data from the FIFO memory block
 	 */
-	*value = `$INSTANCE_NAME`_DATA(q, `$INSTANCE_NAME`_READ_PTR(q));
-	`$INSTANCE_NAME`_READ_PTR(q) = `$INSTANCE_NAME`_READ_PTR(q) + 1;
-	if (`$INSTANCE_NAME`_READ_PTR(q) >= `$INSTANCE_NAME`_MAX(q)) {
-		`$INSTANCE_NAME`_READ_PTR(q) = 0;
+	*value = `$INSTANCE_NAME`_QData(q, `$INSTANCE_NAME`_QReadPtr(q));
+	`$INSTANCE_NAME`_QReadPtr(q) = `$INSTANCE_NAME`_QReadPtr(q) + 1;
+	if (`$INSTANCE_NAME`_QReadPtr(q) >= `$INSTANCE_NAME`_QMax(q)) {
+		`$INSTANCE_NAME`_QReadPtr(q) = 0;
 	}
-	`$INSTANCE_NAME`_SIZE(q) = `$INSTANCE_NAME`_SIZE(q) - 1;
+	`$INSTANCE_NAME`_QSize(q) = `$INSTANCE_NAME`_QSize(q) - 1;
 	
 	return CYRET_SUCCESS;
 }
@@ -91,7 +90,7 @@ cystatus `$INSTANCE_NAME`_Create( uint8 *q, uint16 array_size )
 	if ((array_size <= 8)||(q==NULL)) return CYRET_BAD_PARAM;
 	
 	memset((void*)q,0L,array_size);
-	`$INSTANCE_NAME`_MAX(q) = array_size - 8;
+	`$INSTANCE_NAME`_QMax(q) = array_size - 8;
 	return CYRET_SUCCESS;
 }
 /* ------------------------------------------------------------------------ */
@@ -103,18 +102,22 @@ void `$INSTANCE_NAME`_Flush( uint8 *q )
 	if (q == NULL) return;
 	
 	/* Store the value of the old MAX */
-	max = `$INSTANCE_NAME`_MAX(q);
+	max = `$INSTANCE_NAME`_QMax(q);
 	/* Clear the FIFO Header block */
 	memset((void*)q,0,8);
 	/* restore the MAX length setting */
-	`$INSTANCE_NAME`_MAX(q) = max;
+	`$INSTANCE_NAME`_QMax(q) = max;
 }
 /* ------------------------------------------------------------------------ */
 int `$INSTANCE_NAME`_DataReady( uint8* q )
 {
-	return `$INSTANCE_NAME`_SIZE(q);
+	return `$INSTANCE_NAME`_QSize(q);
 }
 /* ------------------------------------------------------------------------ */
+uint8 `$INSTANCE_NAME`_Peek(uint8* q)
+{
+	return `$INSTANCE_NAME`_QData(q,`$INSTANCE_NAME`_QReadPtr(q));
+}
 
 /* ------------------------------------------------------------------------ */
 
