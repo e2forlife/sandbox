@@ -77,5 +77,35 @@ uint16 `$INSTANCE_NAME`_ScanKey( void );
 #define `$INSTANCE_NAME`_KEY_CTRL       ( 0x8000 )
 /* ------------------------------------------------------------------------ */
 
+#if (`$INCLUDE_CLI` == 1)
+	
+/*
+ * read function/write function pointer types
+ * These types are used to fill in the symbol table, which ultimately defines
+ * the symbol table commands for execution.  defining a funtion as NULL will
+ * disallow the mode of operation, writes will flag an error, but reads are
+ * quiet.  The value is passed as a token type for reads (not an actual value)
+ * so that the writer can handle the parsing of the value string for typing.
+ * i.e. POWER wants on or off.
+ */
+typedef cystatus (*`$INSTANCE_NAME`_CLIfunc)( int, char** );
+
+typedef struct {
+	char name[15];   /* Command name */
+	`$INSTANCE_NAME`_CLIfunc fn;     /* Parser callback to be executed */
+	char desc[71];   /* ASCII description of function (for helper) */
+} `$INSTANCE_NAME`_CLI_COMMAND;
+	
+#define CMD_NOTE       ( 0 )
+#define CMD_WARN       ( 1 )
+#define CMD_ERROR      ( 2 )
+#define CMD_FATAL      ( 0xFF )
+
+void `$INSTANCE_NAME`_CliIdle( const `$INSTANCE_NAME`_CLI_COMMAND *tbl, uint8 refresh );
+
+
+
+#endif
+
 #endif
 /* [] END OF FILE */

@@ -90,6 +90,11 @@ void `$INSTANCE_NAME`_Init( void )
 		#endif
 	}
 	
+	#if ( (`$AutoSpawn_Task` == 1)&&(`$vCliTask` == 1)&&(`$INCLUDE_CLI`==1) )
+		/* Initialize and start the CLI task thread */
+		
+	#endif
+	
 	`$INSTANCE_NAME`_initVar = 1;
 }	
 /* ======================================================================== */
