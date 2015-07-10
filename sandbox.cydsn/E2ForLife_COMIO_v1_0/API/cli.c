@@ -31,22 +31,40 @@
 
 #include <cytypes.h>
 #include <stdio.h>
-
+#include <ctype.H>
+	
 #include "`$INSTANCE_NAME`.h"
 
 
+uint8 `$INSTANCE_NAME`_QPeek( uint8* q );
+extern uint8 `$INSTANCE_NAME`_RxQ[];
+
 
 /* ------------------------------------------------------------------------ */
-
+	
+`$INSTANCE_NAME`_CLI_COMMAND *`$INSTANCE_NAME`_CommandTable =
+{
+	{ "help", `$INSTANCE_NAME`_CliHelp, "List available commands and descriptions" },
+	{ "cls",  `$INSTANCE_NAME`_CliClearScreen, "Clear Display." },
+	/* -------------------------------------------------------------------- */
+	/* `#START USER_COMMAND_TABLE` */
+	
+	
+	/* `#END` */
+	/* -------------------------------------------------------------------- */
+	{ "", NULL,"End of Command Table"}	
+};
+	
 /* ------------------------------------------------------------------------ */
 /* Buffer to hold received user input on the line */
-char `$INSTANCE_NAME`_CLIlineBuffer[256];
-char `$INSTANCE_NAME`_CLIoutBuffer[128];
+char `$INSTANCE_NAME`_CLIlineBuffer[`$MAX_CLI_INPUT_BUFFER`];
+char `$INSTANCE_NAME`_CLIoutBuffer[`$MAX_CLI_OUTPUT_BUFFER`];
 
 int `$INSTANCE_NAME`_CLIrefresh;
+uint8 `$INSTANCE_NAME`_CLIinitVar;
 
 /* ------------------------------------------------------------------------ */
-void `$INSTANCE_NAME`_SystemmMsg(const char *str, uint8 level)
+void `$INSTANCE_NAME`_SystemMsg(const char *str, uint8 level)
 {
 	switch(level) {
 		case `$INSTANCE_NAME`_NOTE:
@@ -77,7 +95,7 @@ void `$INSTANCE_NAME`_SystemmMsg(const char *str, uint8 level)
 	}
 }
 /* ------------------------------------------------------------------------ */
-void `$INSTANCE_NAME`_CliHelp( const `$INSTANCE_NAME`_CLI_COMMAND *tbl )
+void `$INSTANCE_NAME`_CliHelp( int argc, char **argv )
 {
 	int idx;
 	char bfr[51];
@@ -85,21 +103,82 @@ void `$INSTANCE_NAME`_CliHelp( const `$INSTANCE_NAME`_CLI_COMMAND *tbl )
 	`$INSTANCE_NAME`_PrintString("\x1b[1;1H\x1b[2J");
 	
 	idx = 0;
-	while ( strlen(tbl[idx].name) != 0) {
-		if ( strlen(tbl[idx].desc) > 0 ) {
-			sprintf(bfr,"\r\n[%10s]",tbl[idx].name);
+	while ( strlen(`$INSTANCE_NAME`_CommandTable[idx].name) != 0) {
+		if ( strlen(`$INSTANCE_NAME`_CommandTable[idx].desc) > 0 ) {
+			sprintf(bfr,"\r\n[%10s]",`$INSTANCE_NAME`_CommandTable[idx].name);
 			`$INSTANCE_NAME`_PrintStringColor(bfr,15,0);
 			`$INSTANCE_NAME`_PrintString(" : ");
-			`$INSTANCE_NAME`_PrintStringColor(tbl[idx].desc, ((idx&0x01)?10:2),1);
+			`$INSTANCE_NAME`_PrintStringColor(`$INSTANCE_NAME`_CommandTable[idx].desc, ((idx&0x01)?10:2),1);
 		}
 		++idx;
 	}
 	`$INSTANCE_NAME`_PrintString("\r\n\n");
 }
 /* ------------------------------------------------------------------------ */
-void `$INSTANCE_NAME`_CliClearScreen( void )
+void `$INSTANCE_NAME`_CliClearScreen( int argc, char **argv )
 {
+	argc = argc;
+	argv = argv;
+	
 	`$INSTANCE_NAME`_PrintString("\x1b[1;1H\x1b[2J");
+}
+/* ------------------------------------------------------------------------ */
+void `$INSTANCE_NAME`_CliShowPrompt( void )
+{
+	int idx;
+	
+	`$INSTANCE_NAME`_PrintString("\r\n");
+	`$INSTANCE_NAME`_PrintStringColor("`$UserMessageString`",`$MSG_FG_COLOR`,`$MSG_BG_COLOR`);
+	`$INSTANCE_NAME`_PrintStringColor("`$UserPromptString`",`$PROMPT_FG_COLOR`,`$PROMPT_BG_COLOR`);
+	`$INSTANCE_NAME`_PrintString(" : ");
+	`$INSTANCE_NAME`_SetColor(`$INPUT_FG_COLOR`,`$INPUT_BG_COLOR`);
+	for(idx=0;idx<`$MAX_CLI_INPUT_BUFFER`;++idx) {
+		`$INSTANCE_NAME`_PutChar(' ');
+	}
+	sprintf(`$INSTANCE_NAME`_CLIoutBuffer,"\x1b[%dD",`$MAX_CLI_INPUT_BUFFER`);
+	`$INSTANCE_NAME`_PrintString( `$INSTANCE_NAME`_CLIoutBuffer );
+	`$INSTANCE_NAME`_PrintString(`$INSTANCE_NAME`_CLIlineBuffer);
+}
+/* ------------------------------------------------------------------------ */
+int `$INSTANCE_NAME`_CliGetArguments( char *buffer, int *argc, char **argv )
+{
+	int idx;
+	cystatus result;
+	
+	result = CYRET_STARTED;
+	idx = 0;
+	*argc = 0;
+	while ( (buffer[idx] != 0) && (result == CYRET_STARTED) ) {
+		/*
+		 * when a space is detected, replace it withe a NULL to
+		 * seperate the string from the line. When a trailing space is
+		 * at the end of the line, just ignore that argument. Set the
+		 * parse status to started to singal that data needs to be
+		 * stored for the next argument.
+		 */
+		if ( isspace( (int) buffer[idx]) ) {
+			while (isspace( (int) buffer[idx]) ) {
+				`$INSTANCE_NAME`_CLIlineBuffer[idx] = 0;
+				++idx;
+			}
+			argv[*argc] = &buffer[idx];
+			*argc = *argc + 1;
+		}
+		/* 
+		 * The end of a command can be the end of the buffer, or, a
+		 * semicolon can be used for the creation of compound
+		 * statements. When a semi is found, return to the processing
+		 * loop to execute the command.
+		 */
+		else if (buffer[idx] == ';') {
+			/* process the command */
+			`$INSTANCE_NAME`_CLIlineBuffer[idx] = 0;
+			result = CYRET_FINISHED;
+		}
+		++idx;
+	}
+	
+	return idx;
 }
 /* ------------------------------------------------------------------------ */
 /**
@@ -123,29 +202,19 @@ cystatus `$INSTANCE_NAME`_CliProcessCommand(const `$INSTANCE_NAME`_CLI_COMMAND *
 	if (argc > 0) {
 		/* look for the processed command */
 		idx = 0;
-		if (strcmp("HELP", argv[0]) == 0) {
-			result = CYRET_SUCCESS;
-			`$INSTANCE_NAME`_CliHelp(tbl);
-		}
-		else if (strcmp("CLS",argv[0]) == 0) {
-			result = CYRET_SUCCESS;
-			`$INSTANCE_NAME`_CliClearScreen();
-		}
-		else {
-			while ( strlen(tbl[idx].name ) > 0) {
-				if ( strcmp(tbl[idx].name, argv[0]) == 0 ) {
-					fn = tbl[idx].fn;
-					if (fn != NULL) {
-						result = fn(argc,argv);
-					}
-					else {
-						result = CYRET_INVALID_OBJECT;
-						sprintf(`$INSTANCE_NAME`_CLIoutBuffer,"\"%s\" has not yet been implemented.",argv[0]);
-						`$INSTANCE_NAME`_SystemMsg(`$INSTANCE_NAME`_CLIoutBuffer,`$INSTANCE_NAME`_WARN);
-					}
+		while ( strlen(tbl[idx].name ) > 0) {
+			if ( strcmp(tbl[idx].name, argv[0]) == 0 ) {
+				fn = tbl[idx].fn;
+				if (fn != NULL) {
+					result = fn(argc,argv);
 				}
-				++idx;
+				else {
+					result = CYRET_INVALID_OBJECT;
+					sprintf(`$INSTANCE_NAME`_CLIoutBuffer,"\"%s\" has not yet been implemented.",argv[0]);
+					`$INSTANCE_NAME`_SystemMsg(`$INSTANCE_NAME`_CLIoutBuffer,`$INSTANCE_NAME`_WARN);
+				}
 			}
+			++idx;
 		}
 		
 		if (result == CYRET_UNKNOWN) {
@@ -160,10 +229,8 @@ cystatus `$INSTANCE_NAME`_CliProcessCommand(const `$INSTANCE_NAME`_CLI_COMMAND *
 {
 	cystatus result;
 	int idx;
-	int len;
 	int argc;
 	char* argv[25];
-	int comment;
 	
 	/*
 	 * read data from the COM port (USBUART) in to a line buffer without
@@ -182,74 +249,17 @@ cystatus `$INSTANCE_NAME`_CliProcessCommand(const `$INSTANCE_NAME`_CLI_COMMAND *
 	 * along with the CLi.
 	 */
 	if (refresh) {
-		`$INSTANCE_NAME`_PrintStringColor("\r\n\r\n[CLI]: ",15,0);
-		`$INSTANCE_NAME`_PrintString(`$INSTANCE_NAME`_CLIlineBuffer);
+		`$INSTANCE_NAME`_CliShowPrompt();
 	}
-	comment = 0;
+	
 	result = `$INSTANCE_NAME`_GetString( `$INSTANCE_NAME`_CLIlineBuffer );
 	if (result == CYRET_FINISHED) {
-		len = strlen(`$INSTANCE_NAME`_CLIlineBuffer);
-		if (len > 0) {
-			/* 
-			 * Initialize the argument count to 0 since there are presently
-			 * no commands to process.  Also set the operation status to
-			 * started to signal that the location of the argument/cmd was
-			 * not yet stored.
-			 */
-			argc = 0;
-			result = CYRET_STARTED;
-			for( idx = 0;idx<len;++idx) {
-				/*
-				 * when a space is detected, replace it withe a NULL to
-				 * seperate the string from the line. When a trailing space is
-				 * at the end of the line, just ignore that argument. Set the
-				 * parse status to started to singal that data needs to be
-				 * stored for the next argument.
-				 */
-				if ( isspace( (int) `$INSTANCE_NAME`_CLIlineBuffer[idx]) ) {
-					`$INSTANCE_NAME`_CLIlineBuffer[idx] = 0;
-					result = CYRET_STARTED;
-				}
-				/* 
-				 * The end of a command can be the end of the buffer, or, a
-				 * semicolon can be used for the creation of compound
-				 * statements. When a semi is found, process the command +
-				 * arguments that have been thus far parsed, AND reset the
-				 * argument count to 0 to begin parsing the next command.
-				 */
-				else if (`$INSTANCE_NAME`_CLIlineBuffer[idx] == ';') {
-					/* process the command */
-					`$INSTANCE_NAME`_CLIlineBuffer[idx] = 0;
-					if (argc > 0) {
-						`$INSTANCE_NAME`_CliProcessCommand(tbl,argc,argv);
-					}
-					/* Start storing the next command */
-					argc = 0;
-					result = CYRET_STARTED;
-				}
-				/*
-				 * When there was no space, tab or semicolon, AND the parser
-				 * stateus is started, store the start of the token in the
-				 * argument vector list, and increase the argument count. Also
-				 * set the parse state to finished to signal that the argument
-				 * start has been saved.
-				 */
-				else if (result == CYRET_STARTED) {
-					if (`$INSTANCE_NAME`_CLIlineBuffer[idx] == '#') {
-						comment = 1;
-					} else if (comment == 0) {
-						argv[argc++] = &`$INSTANCE_NAME`_CLIlineBuffer[idx];
-					}
-					result = CYRET_FINISHED;
-				}
-					
+		idx = 0;
+		while ( `$INSTANCE_NAME`_CLIlineBuffer[ idx ] != 0) {
+			idx += `$INSTANCE_NAME`_CliGetArguments(&`$INSTANCE_NAME`_CLIlineBuffer[idx],&argc,argv);
+			if (argc > 0) {
+				`$INSTANCE_NAME`_CliProcessCommand(tbl,argc,argv);
 			}
-			/*
-			 * Now that the arguments and the commands have been split
-			 * in to an argmunet cound (argc), and argument strings (argV),
-			 * process the command.
-			 */
-			`$INSTANCE_NAME`_CliProcessCommand(tbl,argc,argv);
 		}
 		`$INSTANCE_NAME`_CLIrefresh = 0;
 	}
@@ -262,37 +272,88 @@ cystatus `$INSTANCE_NAME`_CliProcessCommand(const `$INSTANCE_NAME`_CLI_COMMAND *
 	
 void vCliTask( void *pvParameters )
 {
- 	static `$INSTANCE_NAME`_CLI_COMMAND *CommandTable;
+ 	`$INSTANCE_NAME`_CLI_COMMAND *CommandTable;
+	int idx;
+	char lookahead;
+	char ch;
+	char *argv[25];
+	int argc;
+	
 	
 	/*
 	 * Grab the adadress of the command table from the OS parameters
 	 * passed to the task, and assign them to the local data used in the CLI
 	 */
 	CommandTable = (`$INSTANCE_NAME`_CLI_COMMAND*) pvParameters;
+
+	/*
+	 * User CLI initialization code for Performing any operations to setup
+	 * special hardware or other item prior to the connection validation.
+	 */
+	/* `#START USER_CLI_INITIALIZATION_BEFORE_CONNECT` */
+	
+	/* `#END` */
+
+	/*
+	 * CLI Initialization:
+	 * Wait for user input to confirm that the CLI has connected with a
+	 * terminal.. essentially, since the USB port is open and connected
+	 * the second it attaches, we must wait for user input to validate the
+	 * connection, and make sure that the prompts are visible.
+	 */
+	`$INSTANCE_NAME`_GetChar();
 	
 	/*
-	 * CLI Initialization
+	 * The connection has been validated, this merge region allows the
+	 * definition of functions that are performed once the connection
+	 * is connected and valid. For Example, this might be a great place to
+	 * add a welcome string, logon, or some other thing such as this.
 	 */
-	
-	/*
-	 * User CLI initialization code for registering commands, initialization
-	 * of application specific data, or othr stuff (like initialization of
-	 * perepherals) required before entering the main task body.
-	 */
-	/* `#START USER_CLI_INITIALIZATION` */
+	/* `#START USER_CLI_INITIALIZATION_AFTER_CONNECT` */
 	
 	/* `#END` */
 	
 	for(;;) {
 		/*
-		 * Execute Idle processing for hte USB loop.
+		 * Wait for user input.
 		 */
-		`$INSTANCE_NAME`_Idle();
+		`$INSTANCE_NAME`_CliShowPrompt();	
+		/* Read the inpt line from the user with blocking functions */
+		lookahead = 0;
+		while ( (lookahead != '\r') && (lookahead != '\n') ) {
+			ch = `$INSTANCE_NAME`_GetChar();
+			lookahead = (char)`$INSTANCE_NAME`_QPeek(`$INSTANCE_NAME`_RxQ);
+			if ( (ch == '\b') || (ch == 127) ) {
+				`$INSTANCE_NAME`_CLIlineBuffer[idx] = 0;
+				if (idx>0) {
+					idx--;
+				}
+			}
+			else {
+				`$INSTANCE_NAME`_CLIlineBuffer[idx++] = ch;
+			}
+			`$INSTANCE_NAME`_CLIlineBuffer[idx] = 0;
+		}
+	
+		if ( (lookahead == '\r') || (lookahead == '\n') ) {
+			do {
+				`$INSTANCE_NAME`_GetChar(); /* Remove the EOL character from buffer */
+				lookahead = `$INSTANCE_NAME`_QPeek(`$INSTANCE_NAME`_RxQ);
+			}
+			while( (lookahead == '\r') || (lookahead == '\n') );
+		}
 		
 		/*
 		 * Execute the shell processor code
 		 */
-		`$INSTANCE_NAME`_CliIdle(CommandTable,0);
+		idx = 0;
+		while ( `$INSTANCE_NAME`_CLIlineBuffer[ idx ] != 0) {
+			idx += `$INSTANCE_NAME`_CliGetArguments(&`$INSTANCE_NAME`_CLIlineBuffer[idx],&argc,argv);
+			if (argc > 0) {
+				`$INSTANCE_NAME`_CliProcessCommand(CommandTable,argc,argv);
+			}
+		}
+		memset((void*)&`$INSTANCE_NAME`_CLIlineBuffer[0],0,idx);
 	}
 }
 /* ------------------------------------------------------------------------ */

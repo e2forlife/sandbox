@@ -792,6 +792,11 @@ V8 if desired. */
 	#define xList List_t
 #endif /* configENABLE_BACKWARD_COMPATIBILITY */
 
+
+void `$INSTANCE_NAME`_Init( void );
+void `$INSTANCE_NAME`_Enable( void );
+void `$INSTANCE_NAME`_Start( void );
+
 #ifdef __cplusplus
 }
 #endif

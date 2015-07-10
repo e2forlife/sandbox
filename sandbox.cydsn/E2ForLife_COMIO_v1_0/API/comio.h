@@ -102,8 +102,20 @@ typedef struct {
 #define `$INSTANCE_NAME`_FATAL      ( 0xFF )
 
 void `$INSTANCE_NAME`_CliIdle( const `$INSTANCE_NAME`_CLI_COMMAND *tbl, uint8 refresh );
-void `$INSTANCE_NAME`_SystemmMsg(const char *str, uint8 level);
+void `$INSTANCE_NAME`_SystemMsg(const char *str, uint8 level);
+int `$INSTANCE_NAME`_CliGetArguments( char *buffer, int *argc, char **argv );
+void `$INSTANCE_NAME`_CliHelp( int argc, char **argv );
+void `$INSTANCE_NAME`_CliClearScreen( int argc, char **argv );
 
+/*
+ * When the CLI TASK option is selected, add in the prototype for the
+ * CLI task.
+ */
+#if (`$vCliTask` == 1)
+
+	void vCliTask( void *pvParameters );
+
+#endif
 
 
 #endif

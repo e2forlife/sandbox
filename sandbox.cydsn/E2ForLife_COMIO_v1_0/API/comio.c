@@ -37,6 +37,17 @@
 #include "`$COM_INSTANCE`_cdc.h"
 #endif
 
+#if (`$USE_FREERTOS` == 1)
+	#include "`$FreeRTOS`.h"
+	#include "`$FreeRTOS`_task.h"
+#endif
+
+#if (`$INCLUDE_CLI`==1)
+
+	extern `$INSTANCE_NAME`_CLI_COMMAND *`$INSTANCE_NAME`_CommandTable;
+
+#endif
+
 /* ======================================================================== */
 #define `$INSTANCE_NAME`_QMAX_IDX      ( 2 )
 #define `$INSTANCE_NAME`_QSIZE_IDX     ( 0 )
@@ -91,7 +102,9 @@ void `$INSTANCE_NAME`_Init( void )
 	}
 	
 	#if ( (`$AutoSpawn_Task` == 1)&&(`$vCliTask` == 1)&&(`$INCLUDE_CLI`==1) )
+		
 		/* Initialize and start the CLI task thread */
+		xTaskCreate( vCliTask, "`$INSTANCE_NAME` CLI Task", 600, (void*)&`$INSTANCE_NAME`_CommandTable[0],6,NULL);
 		
 	#endif
 	
