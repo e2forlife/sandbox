@@ -32,7 +32,7 @@
 #include <cytypes.h>
 #include <stdio.h>
 
-#include "cmd.h"
+#include "`$INSTANCE_NAME`.h"
 
 
 
@@ -50,56 +50,56 @@ void `$INSTANCE_NAME`_SystemmMsg(const char *str, uint8 level)
 {
 	switch(level) {
 		case `$INSTANCE_NAME`_NOTE:
-			COMIO_PrintStringColor("\r\n[NOTE]",15,0);
-			COMIO_PrintString(": ");
-			COMIO_PrintStringColor(str,2,0);
+			`$INSTANCE_NAME`_PrintStringColor("\r\n[NOTE]",15,0);
+			`$INSTANCE_NAME`_PrintString(": ");
+			`$INSTANCE_NAME`_PrintStringColor(str,2,0);
 			break;
 		case `$INSTANCE_NAME`_WARN:
-			COMIO_PrintStringColor("\r\n[WARNING]",15,0);
-			COMIO_PrintString(": ");
-			COMIO_PrintStringColor(str,3,0);
+			`$INSTANCE_NAME`_PrintStringColor("\r\n[WARNING]",15,0);
+			`$INSTANCE_NAME`_PrintString(": ");
+			`$INSTANCE_NAME`_PrintStringColor(str,3,0);
 			break;
 		case `$INSTANCE_NAME`_ERROR:
-			COMIO_PrintStringColor("\r\n[ERROR]",15,0);
-			COMIO_PrintString(": ");
-			COMIO_PrintStringColor(str,1,0);
+			`$INSTANCE_NAME`_PrintStringColor("\r\n[ERROR]",15,0);
+			`$INSTANCE_NAME`_PrintString(": ");
+			`$INSTANCE_NAME`_PrintStringColor(str,1,0);
 			break;
 		case `$INSTANCE_NAME`_FATAL:
-			COMIO_PrintStringColor("\r\n[FATAL]",15,0);
-			COMIO_PrintString(": ");
-			COMIO_PrintStringColor(str,9,0);
+			`$INSTANCE_NAME`_PrintStringColor("\r\n[FATAL]",15,0);
+			`$INSTANCE_NAME`_PrintString(": ");
+			`$INSTANCE_NAME`_PrintStringColor(str,9,0);
 			break;
 		default:
-			COMIO_PrintStringColor("\r\n[????]",15,0);
-			COMIO_PrintString(": ");
-			COMIO_PrintStringColor(str,5,0);
+			`$INSTANCE_NAME`_PrintStringColor("\r\n[????]",15,0);
+			`$INSTANCE_NAME`_PrintString(": ");
+			`$INSTANCE_NAME`_PrintStringColor(str,5,0);
 			break;
 	}
 }
 /* ------------------------------------------------------------------------ */
-void `$INSTANCE_NAME`_CliHelp( const CMD_COMMAND *tbl )
+void `$INSTANCE_NAME`_CliHelp( const `$INSTANCE_NAME`_CLI_COMMAND *tbl )
 {
 	int idx;
 	char bfr[51];
 	
-	COMIO_PrintString("\x1b[1;1H\x1b[2J");
+	`$INSTANCE_NAME`_PrintString("\x1b[1;1H\x1b[2J");
 	
 	idx = 0;
 	while ( strlen(tbl[idx].name) != 0) {
 		if ( strlen(tbl[idx].desc) > 0 ) {
 			sprintf(bfr,"\r\n[%10s]",tbl[idx].name);
-			COMIO_PrintStringColor(bfr,15,0);
-			COMIO_PrintString(" : ");
-			COMIO_PrintStringColor(tbl[idx].desc, ((idx&0x01)?10:2),1);
+			`$INSTANCE_NAME`_PrintStringColor(bfr,15,0);
+			`$INSTANCE_NAME`_PrintString(" : ");
+			`$INSTANCE_NAME`_PrintStringColor(tbl[idx].desc, ((idx&0x01)?10:2),1);
 		}
 		++idx;
 	}
-	COMIO_PrintString("\r\n\n");
+	`$INSTANCE_NAME`_PrintString("\r\n\n");
 }
 /* ------------------------------------------------------------------------ */
 void `$INSTANCE_NAME`_CliClearScreen( void )
 {
-	COMIO_PrintString("\x1b[1;1H\x1b[2J");
+	`$INSTANCE_NAME`_PrintString("\x1b[1;1H\x1b[2J");
 }
 /* ------------------------------------------------------------------------ */
 /**
@@ -112,10 +112,10 @@ void `$INSTANCE_NAME`_CliClearScreen( void )
  * the buffer is dumped and the user is notified. otherwise, the processor
  * function is called.
  */
-cystatus `$INSTANCE_NAME`_CliProcessCommand(const CMD_COMMAND *tbl, int argc, char **argv)
+cystatus `$INSTANCE_NAME`_CliProcessCommand(const `$INSTANCE_NAME`_CLI_COMMAND *tbl, int argc, char **argv)
 {
 	int idx;
-	CMD_func fn;
+	`$INSTANCE_NAME`_CLIfunc fn;
 	cystatus result;
 	
 	result = CYRET_UNKNOWN;
@@ -141,7 +141,7 @@ cystatus `$INSTANCE_NAME`_CliProcessCommand(const CMD_COMMAND *tbl, int argc, ch
 					else {
 						result = CYRET_INVALID_OBJECT;
 						sprintf(`$INSTANCE_NAME`_CLIoutBuffer,"\"%s\" has not yet been implemented.",argv[0]);
-						`$INSTANCE_NAME`_SystemMsg(`$INSTANCE_NAME`_CLIoutBuffer,CMD_WARN);
+						`$INSTANCE_NAME`_SystemMsg(`$INSTANCE_NAME`_CLIoutBuffer,`$INSTANCE_NAME`_WARN);
 					}
 				}
 				++idx;
@@ -150,7 +150,7 @@ cystatus `$INSTANCE_NAME`_CliProcessCommand(const CMD_COMMAND *tbl, int argc, ch
 		
 		if (result == CYRET_UNKNOWN) {
 			sprintf(`$INSTANCE_NAME`_CLIoutBuffer,"Unknown Command \"%s\"",argv[0]);
-			`$INSTANCE_NAME`_SystemMsg(`$INSTANCE_NAME`_CLIoutBuffer, CMD_ERROR);
+			`$INSTANCE_NAME`_SystemMsg(`$INSTANCE_NAME`_CLIoutBuffer, `$INSTANCE_NAME`_ERROR);
 		}
 	}
 	return result;
@@ -182,11 +182,11 @@ cystatus `$INSTANCE_NAME`_CliProcessCommand(const CMD_COMMAND *tbl, int argc, ch
 	 * along with the CLi.
 	 */
 	if (refresh) {
-		COMIO_PrintStringColor("\r\n\r\n[CLI]: ",15,0);
-		COMIO_PrintString(`$INSTANCE_NAME`_CLIlineBuffer);
+		`$INSTANCE_NAME`_PrintStringColor("\r\n\r\n[CLI]: ",15,0);
+		`$INSTANCE_NAME`_PrintString(`$INSTANCE_NAME`_CLIlineBuffer);
 	}
 	comment = 0;
-	result = COMIO_GetString( `$INSTANCE_NAME`_CLIlineBuffer );
+	result = `$INSTANCE_NAME`_GetString( `$INSTANCE_NAME`_CLIlineBuffer );
 	if (result == CYRET_FINISHED) {
 		len = strlen(`$INSTANCE_NAME`_CLIlineBuffer);
 		if (len > 0) {
@@ -217,7 +217,7 @@ cystatus `$INSTANCE_NAME`_CliProcessCommand(const CMD_COMMAND *tbl, int argc, ch
 				 * arguments that have been thus far parsed, AND reset the
 				 * argument count to 0 to begin parsing the next command.
 				 */
-				else if (CMD_lineBuffer[idx] == ';') {
+				else if (`$INSTANCE_NAME`_CLIlineBuffer[idx] == ';') {
 					/* process the command */
 					`$INSTANCE_NAME`_CLIlineBuffer[idx] = 0;
 					if (argc > 0) {
@@ -257,7 +257,7 @@ cystatus `$INSTANCE_NAME`_CliProcessCommand(const CMD_COMMAND *tbl, int argc, ch
 /* ======================================================================== */
 #if (`$vCliTask` == 1)
 /* ------------------------------------------------------------------------ */
-	#include "$FreeRTOS`.h"
+	#include "`$FreeRTOS`.h"
 	#include "`$FreeRTOS`_task.h"
 	
 void vCliTask( void *pvParameters )

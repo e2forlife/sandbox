@@ -96,12 +96,13 @@ typedef struct {
 	char desc[71];   /* ASCII description of function (for helper) */
 } `$INSTANCE_NAME`_CLI_COMMAND;
 	
-#define CMD_NOTE       ( 0 )
-#define CMD_WARN       ( 1 )
-#define CMD_ERROR      ( 2 )
-#define CMD_FATAL      ( 0xFF )
+#define `$INSTANCE_NAME`_NOTE       ( 0 )
+#define `$INSTANCE_NAME`_WARN       ( 1 )
+#define `$INSTANCE_NAME`_ERROR      ( 2 )
+#define `$INSTANCE_NAME`_FATAL      ( 0xFF )
 
 void `$INSTANCE_NAME`_CliIdle( const `$INSTANCE_NAME`_CLI_COMMAND *tbl, uint8 refresh );
+void `$INSTANCE_NAME`_SystemmMsg(const char *str, uint8 level);
 
 
 
