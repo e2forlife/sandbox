@@ -31,7 +31,8 @@
 
 #include <cytypes.h>
 #include <stdio.h>
-#include <ctype.H>
+#include <string.h>
+#include <ctype.h>
 	
 #include "`$INSTANCE_NAME`.h"
 
@@ -42,7 +43,7 @@ extern uint8 `$INSTANCE_NAME`_RxQ[];
 
 /* ------------------------------------------------------------------------ */
 	
-`$INSTANCE_NAME`_CLI_COMMAND *`$INSTANCE_NAME`_CommandTable =
+const `$INSTANCE_NAME`_CLI_COMMAND `$INSTANCE_NAME`_CommandTable[] =
 {
 	{ "help", `$INSTANCE_NAME`_CliHelp, "List available commands and descriptions" },
 	{ "cls",  `$INSTANCE_NAME`_CliClearScreen, "Clear Display." },
