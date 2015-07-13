@@ -37,6 +37,8 @@
 
 #include "`$FreeRTOS`.h"
 #include "`$FreeRTOS`_task.h"
+#include "`$FreeRTOS`_queue.h"
+#include "`$FreeRTOS`_semphr.h"
 
 #if (`$INCLUDE_CLI`==1)
 
@@ -45,8 +47,11 @@
 #endif
 
 /* ======================================================================== */
-QueueHandle_t `$INSTANCE_NAME`_RxQ;
-QueueHandle_t `$NISTANCE_NAME`_TxQ;
+
+xQueueHandle `$INSTANCE_NAME`_RxQ;
+xQueueHandle `$INSTANCE_NAME`_TxQ;
+
+xSemaphoreHandle `$INSTANCE_NAME`_UsbDevice;
 
 uint8 `$INSTANCE_NAME`_initVar;
 
@@ -63,14 +68,8 @@ void `$INSTANCE_NAME`_Start( void )
 /* ------------------------------------------------------------------------ */
 void `$INSTANCE_NAME`_Init( void )
 {
-	/* Initialize USB Buffers */
-	`$INSTANCE_NAME`_RxQ = xQueueCreate( `$RX_SIZE`, 1 );
-	`$INSTANCE_NAME`_TxQ = xQueueCreate( `$TX_SIZE`, 1 );
+	/*  Initialize the USB COM port */
 	
-	
-    /* Enable Global Interrupts */
-    CyGlobalIntEnable;                        
-
 	if (`$COM_INSTANCE`_initVar == 0) {
     	/* Start USBFS Operation with 3V operation */
 		#if (CYDEV_VDDIO1_MV < 5000)
@@ -80,110 +79,162 @@ void `$INSTANCE_NAME`_Init( void )
 		#endif
 	}
 	
-	xTaskCreate( `$INSTANCE_NAME`_Idle,"`$INSTANCE_NAME` USB Processing", 400, NULL, 6, NULL);
-
-	#if (`$INCLUDE_CLI`==1)
-		
-		/* Initialize and start the CLI task thread */
-		xTaskCreate( `$INSTANCE_NAME`_vCliTask, "`$INSTANCE_NAME` CLI Task", 600, (void*)&`$INSTANCE_NAME`_CommandTable[0],6,NULL);
-		
-	#endif
+	/* Initialize USB Buffers */
+	`$INSTANCE_NAME`_RxQ = xQueueCreate( `$RX_SIZE`, 1 );
+	`$INSTANCE_NAME`_TxQ = xQueueCreate( `$TX_SIZE`, 1 );
+	`$INSTANCE_NAME`_UsbDevice = xSemaphoreCreateMutex();
 	
-	`$INSTANCE_NAME`_initVar = 1;
-}	
+	if ( (`$INSTANCE_NAME`_RxQ != NULL) && (`$INSTANCE_NAME`_TxQ != NULL) ) {
+		
+		xTaskCreate( `$INSTANCE_NAME`_ReaderTask,"`$INSTANCE_NAME` USB Read/Control Task", 400, NULL, `$USB_PRIORITY`, NULL);
+		xTaskCreate( `$INSTANCE_NAME`_WriterTask,"`$INSTANCE_NAME` USB Output Task", 400, NULL, `$USB_PRIORITY`, NULL);
+
+		#if (`$INCLUDE_CLI`==1)
+			
+			/* Initialize and start the CLI task thread */
+			xTaskCreate( `$INSTANCE_NAME`_vCliTask, "`$INSTANCE_NAME` CLI Task", 600, (void*)&`$INSTANCE_NAME`_CommandTable[0],`$CLI_PRIORITY`,NULL);
+		
+		#endif
+	
+		`$INSTANCE_NAME`_initVar = 1;
+	}
+}
+/* ------------------------------------------------------------------------ */
+void `$INSTANCE_NAME`_Enable( void )
+{
+	if (`$INSTANCE_NAME`_initVar != 0) {
+		/*
+		 * COMIO was initialized, and now is bing enabled for use.
+		 * Enter user extension enables within the merge region below.
+		 */
+		/* `#START COMIO_ENABLE` */
+		
+		/* `#END` */
+	}
+}
 /* ======================================================================== */
-void `$INSTANCE_NAME`_Idle( void *pvParameters )
+void `$INSTANCE_NAME`_ReaderTask( void *pvParameters )
 {
     uint16 count;
     uint8 buffer[`$INSTANCE_NAME`_BUFFER_LEN];
 	uint16 idx;
 	
 	for (;;) {
-		/* Handle enumeration of USB port */
-	    if(`$COM_INSTANCE`_IsConfigurationChanged() != 0u) /* Host could send double SET_INTERFACE request */
-	    {
-	        if(`$COM_INSTANCE`_GetConfiguration() != 0u)   /* Init IN endpoints when device configured */
-	        {
-	            /* Enumeration is done, enable OUT endpoint for receive data from Host */
-	            `$COM_INSTANCE`_CDC_Init();
-	        }
-	    }
+		xSemaphoreTake( `$INSTANCE_NAME`_UsbDevice, portMAX_DELAY );
+		{
+			/* Handle enumeration of USB port */
+	    	if(`$COM_INSTANCE`_IsConfigurationChanged() != 0u) /* Host could send double SET_INTERFACE request */
+	    	{
+	        	if(`$COM_INSTANCE`_GetConfiguration() != 0u)   /* Init IN endpoints when device configured */
+	        	{
+	            	/* Enumeration is done, enable OUT endpoint for receive data from Host */
+	            	`$COM_INSTANCE`_CDC_Init();
+	        	}
+	    	}
+		}
+		xSemaphoreGive( `$INSTANCE_NAME`_UsbDevice );
+		
 		/* Service the USB CDC */
-	    if(`$COM_INSTANCE`_GetConfiguration() != 0u)
-	    {
-	        if(`$COM_INSTANCE`_DataIsReady() != 0u)               /* Check for input data from PC */
-	        {   
-	            count = `$COM_INSTANCE`_GetAll(buffer);           /* Read received data and re-enable OUT endpoint */
-	            if(count != 0u)
-	            {
-					/* insert data in to Receive FIFO */
-					for(idx=0;idx<count;++idx) {
-						`$INSTANCE_NAME`_QWrite(`$INSTANCE_NAME`_RxQ, buffer[idx]);
+		xSemaphoreTake( `$INSTANCE_NAME`_UsbDevice, portMAX_DELAY);
+		{
+		    if(`$COM_INSTANCE`_GetConfiguration() != 0u)
+		    {
+		        if(`$COM_INSTANCE`_DataIsReady() != 0u)               /* Check for input data from PC */
+		        {   
+		            count = `$COM_INSTANCE`_GetAll(buffer);           /* Read received data and re-enable OUT endpoint */
+		            if(count != 0u)
+		            {
+						/* insert data in to Receive FIFO */
+						for(idx=0;idx<count;++idx) {
+							xQueueSend( `$INSTANCE_NAME`_RxQ, (void*)&buffer[idx],portMAX_DELAY);
+							#if (`$DEBUG_USB_RX_ECHO` == 1 )
+								xQueueSend( `$INSTANCE_NAME`_TxQ, (void*)&buffer[idx],portMAX_DELAY);
+							#endif
+						}
 					}
 				}
 			}
-			/*
-			 * detrmine if there is data to be sent from the buffer to the host,
-			 * and send a block of data from the FIFO up to the endpoint limit.
-			 */
-			if (`$INSTANCE_NAME`_QSize(`$INSTANCE_NAME`_TxQ ) > 0) {
-				/* Wait till component is ready to send more data to the PC */			
-	            while(`$COM_INSTANCE`_CDCIsReady() == 0u) {
-					;
-				}
-				count = 0;
-				while ( (count < `$INSTANCE_NAME`_BUFFER_LEN) && (`$INSTANCE_NAME`_QSize(`$INSTANCE_NAME`_TxQ) > 0) ) {
-					buffer[count++] = `$INSTANCE_NAME`_QRead(`$INSTANCE_NAME`_TxQ);
-				}
-				/* Send data back to host */
-	            `$COM_INSTANCE`_PutData(buffer, count);
-	            /* If the last sent packet is exactly maximum packet size, 
-	             *  it shall be followed by a zero-length packet to assure the
-	             *  end of segment is properly identified by the terminal.
-	             */
-	            if(count == `$INSTANCE_NAME`_BUFFER_LEN){
-					/* Wait till component is ready to send more data to the PC */
-	                while(`$COM_INSTANCE`_CDCIsReady() == 0u) {
-						;
-					}
-	                `$COM_INSTANCE`_PutData(NULL, 0u);         /* Send zero-length packet to PC */
-	            }
-	        }  
 		}
+		xSemaphoreGive( `$INSTANCE_NAME`_UsbDevice);
+		
+		vTaskDelay(`$USB_SCAN_RATE`/portTICK_PERIOD_MS);
 	}
 }
+/* ------------------------------------------------------------------------ */
+void `$INSTANCE_NAME`_WriterTask( void *pvParameters )
+{
+    uint16 count;
+    uint8 buffer[`$INSTANCE_NAME`_BUFFER_LEN];
+	uint16 idx;
+	portBASE_TYPE xStatus;
+	
+	for (;;) {
+		/* Service the USB CDC */
+		xSemaphoreTake( `$INSTANCE_NAME`_UsbDevice, portMAX_DELAY);
+		{
+		    if(`$COM_INSTANCE`_GetConfiguration() != 0u)
+		    {
+				/*
+				 * build a buffer of data to send back over the USB COM port.
+				 */
+				count = uxQueueMessagesWaiting( `$INSTANCE_NAME`_TxQ );
+				count = (count > `$INSTANCE_NAME`_BUFFER_LEN)? `$INSTANCE_NAME`_BUFFER_LEN:count;
+				
+				/* Wait till component is ready to send more data to the PC */			
+	            if ( (`$COM_INSTANCE`_CDCIsReady() != 0u) && (count > 0) ) {
+					taskENTER_CRITICAL();
+					for (idx = 0; idx < count; ++idx) {
+						xStatus = xQueueReceive( `$INSTANCE_NAME`_TxQ,&buffer[idx], `$USB_SCAN_RATE`/portTICK_RATE_MS);
+					}
+					/* Send data back to host */
+	    	        `$COM_INSTANCE`_PutData(buffer, count);
+					
+					/* If the last sent packet is exactly maximum packet size, 
+	            	 *  it shall be followed by a zero-length packet to assure the
+	             	*  end of segment is properly identified by the terminal.
+	             	*/
+	            	if(count == `$INSTANCE_NAME`_BUFFER_LEN){
+						/* Wait till component is ready to send more data to the PC */
+	                	while(`$COM_INSTANCE`_CDCIsReady() == 0u) {
+							vTaskDelay( `$USB_SCAN_RATE` / portTICK_RATE_MS );
+						}
+	                	`$COM_INSTANCE`_PutData(NULL, 0u);         /* Send zero-length packet to PC */
+	            	} 
+					taskEXIT_CRITICAL();
+				}
+			}
+		}
+		xSemaphoreGive( `$INSTANCE_NAME`_UsbDevice );
+		
+		vTaskDelay(`$USB_SCAN_RATE`/portTICK_PERIOD_MS);
+	}
+}
+
+/* ======================================================================== */
 /* ------------------------------------------------------------------------ */
 char `$INSTANCE_NAME`_GetChar( void )
 {
 	char value;
+	portBASE_TYPE xStatus;
 	
 	/* wait for data to become available */
-	`$INSTANCE_NAME`_Idle();
-	while (`$INSTANCE_NAME`_QSize(`$INSTANCE_NAME`_RxQ) == 0) {
-		`$INSTANCE_NAME`_Idle();
-	}
+	xStatus = xQueueReceive( `$INSTANCE_NAME`_RxQ, &value, portMAX_DELAY);
 	
-	value = (char) `$INSTANCE_NAME`_QRead(`$INSTANCE_NAME`_RxQ);
+	if (xStatus != pdPASS) {
+		value = 255;
+	}
 	
 	return value;
 }
 /* ------------------------------------------------------------------------ */
 cystatus `$INSTANCE_NAME`_PutChar( char ch )
 {
-	cystatus result;
 	
-	/* set default, and process USB CDC port */
-	result = CYRET_SUCCESS;
-	`$INSTANCE_NAME`_Idle();
-	/* insert character in to the send fifo */
-	`$INSTANCE_NAME`_QWrite(`$INSTANCE_NAME`_TxQ, ch);
-	/*
-	 * The transmot data has been placed in to the Tx buffer, so no, try to
-	 * send some (or all) of it.
-	 */
-	`$INSTANCE_NAME`_Idle();
+	portBASE_TYPE xStatus;
 	
-	return result;
+	xStatus = xQueueSend( `$INSTANCE_NAME`_TxQ, &ch, portMAX_DELAY);
+	
+	return (xStatus == pdPASS)?CYRET_SUCCESS:CYRET_MEMORY;
 }
 /* ------------------------------------------------------------------------ */
 cystatus `$INSTANCE_NAME`_PrintString( const char *str )
@@ -191,19 +242,12 @@ cystatus `$INSTANCE_NAME`_PrintString( const char *str )
 	int idx;
 	cystatus result;
 	
-	`$INSTANCE_NAME`_Idle();
-
 	result = CYRET_SUCCESS;
 	idx = 0;
 	while ( (str[idx] != 0) && (result == CYRET_SUCCESS) ) {
 		/* insert character in to the send fifo */
-		`$INSTANCE_NAME`_QWrite(`$INSTANCE_NAME`_TxQ,str[idx++]);		
+		result = `$INSTANCE_NAME`_PutChar(str[idx++]);		
 	}
-	/*
-	 * The transmot data has been placed in to the Tx buffer, so no, try to
-	 * send some (or all) of it.
-	 */
-	`$INSTANCE_NAME`_Idle();
 	return result;
 }
 /* ------------------------------------------------------------------------ */
@@ -243,11 +287,11 @@ cystatus `$INSTANCE_NAME`_PrintStringColor(const char *str, uint8 fg, uint8 bg)
 	while ( (str[idx] != 0) && (result == CYRET_SUCCESS) ) {
 		if ( ( (str[idx] == '[') || (str[idx] == ']') || (str[idx] == '(') || (str[idx] == ')') ) && (bg!=4) ) {
 			result = `$INSTANCE_NAME`_SetColor(4,bg);
-			`$INSTANCE_NAME`_QWrite( `$INSTANCE_NAME`_TxQ, str[idx] );
+			`$INSTANCE_NAME`_PutChar( str[idx] );
 			result = `$INSTANCE_NAME`_SetColor(fg,bg);
 		}
 		else {
-			`$INSTANCE_NAME`_QWrite( `$INSTANCE_NAME`_TxQ, str[idx] );
+			`$INSTANCE_NAME`_PutChar( str[idx] );
 		}
 		++idx;
 	}
@@ -262,60 +306,46 @@ cystatus `$INSTANCE_NAME`_GetString(char *str)
 	char ch;
 	char lookahead;
 	int idx;
-	
-	/* Process queue'd I/O over the USB port */
-	`$INSTANCE_NAME`_Idle();
+	portBASE_TYPE xStatus;
 	
 	result = CYRET_STARTED;
-	idx = strlen( str );
-	lookahead = (char) `$INSTANCE_NAME`_QPeek(`$INSTANCE_NAME`_RxQ);
+	idx = 0;
+	xStatus = xQueuePeek( `$INSTANCE_NAME`_RxQ, &lookahead, portMAX_DELAY);
 	
-	while (
-#if (`$INSTANCE_NAME`_BLOCKING_GETS == `$INSTANCE_NAME`_NO)
-			(`$INSTANCE_NAME`_QSize(`$INSTANCE_NAME`_RxQ) > 0) && 
-#endif
-			(lookahead != '\r') && (lookahead != '\n') ) {
+	/* 
+	 * While there are no EOL character read, read the data fro mthe queue,
+	 * and take a peek at the next data in the buffer.
+	 */
+	while ( (lookahead != '\r') && (lookahead != '\n') ) {
 		ch = `$INSTANCE_NAME`_GetChar();
-		lookahead = (char)`$INSTANCE_NAME`_QPeek(`$INSTANCE_NAME`_RxQ);
+		xStatus = xQueuePeek( `$INSTANCE_NAME`_RxQ, &lookahead, portMAX_DELAY);
 		if ( (ch == '\b') || (ch == 127) ) {
 			str[idx] = 0;
 			if (idx>0) {
 				idx--;
 			}
+			`$INSTANCE_NAME`_PrintString("\b \b");
 		}
 		else {
 			str[idx++] = ch;
+			`$INSTANCE_NAME`_PutChar( ch );
 		}
 		str[idx] = 0;
 	}
 	
+	/*
+	 * Remove the lingering EOL characters from the queue to prepare reading
+	 * of the next string.
+	 */
 	if ( (lookahead == '\r') || (lookahead == '\n') ) {
 		do {
 			`$INSTANCE_NAME`_GetChar(); /* Remove the EOL character from buffer */
-			lookahead = `$INSTANCE_NAME`_QPeek(`$INSTANCE_NAME`_RxQ);
+			xStatus = xQueuePeek( `$INSTANCE_NAME`_RxQ, &lookahead, portMAX_DELAY);
 		}
 		while( (lookahead == '\r') || (lookahead == '\n') );
 		result = CYRET_FINISHED;
 	}
 	return result;
-}
-/* ------------------------------------------------------------------------- */
-void `$INSTANCE_NAME`_ClearFifo( void )
-{
-	`$INSTANCE_NAME`_ClearTxBuffer();
-	`$INSTANCE_NAME`_ClearRxBuffer();
-}
-/* ------------------------------------------------------------------------- */
-void `$INSTANCE_NAME`_ClearTxBuffer( void )
-{
-	memset((void*)`$INSTANCE_NAME`_TxQ,0, 8);
-	`$INSTANCE_NAME`_QMax(`$INSTANCE_NAME`_TxQ) = `$INSTANCE_NAME`_TX_SIZE;
-}
-/* ------------------------------------------------------------------------- */
-void `$INSTANCE_NAME`_ClearRxBuffer( void )
-{
-	memset((void*)`$INSTANCE_NAME`_RxQ,0, 8);
-	`$INSTANCE_NAME`_QMax(`$INSTANCE_NAME`_RxQ) = `$INSTANCE_NAME`_RX_SIZE;
 }
 /* ------------------------------------------------------------------------- */
 /*
@@ -338,8 +368,18 @@ uint16 `$INSTANCE_NAME`_ScanKey( void )
 				}
 				while ( !isalpha((int)ch) );
 				result = (uint16) ch;
-				result |= `$INSTANCE_NAME`_KEY_CTRL;
+				result |= `$INSTANCE_NAME`_KEY_CSI;
 			}
+		}
+		else if ( ch < 32 ) {
+			/*
+			 * In situations where the control key was pressed (CTRL-C)
+			 * 
+			 */
+			result = (ch+32) | `$INSTANCE_NAME`_KEY_CTRL;
+		}
+		else if ( ((ch>='A')&&(ch <='Z'))||((ch>='!')&&(ch<='+'))||(ch=='^')||(ch=='_')||(ch==':')||(ch=='<')||(ch=='>')||(ch=='?') ) {
+			result = ch | `$INSTANCE_NAME`_KEY_SHFT;
 		}
 		else {
 			result = ch;

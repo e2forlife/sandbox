@@ -36,11 +36,10 @@
 	
 #include "`$INSTANCE_NAME`.h"
 
-
-uint8 `$INSTANCE_NAME`_QPeek( uint8* q );
-extern uint8 `$INSTANCE_NAME`_RxQ[];
-
-
+#include "`$FreeRTOS`.h"
+#include "`$FreeRTOS`_task.h"
+#include "`$FreeRTOS`_queue.h"
+	
 /* ------------------------------------------------------------------------ */
 	
 const `$INSTANCE_NAME`_CLI_COMMAND `$INSTANCE_NAME`_CommandTable[] =
@@ -57,9 +56,6 @@ const `$INSTANCE_NAME`_CLI_COMMAND `$INSTANCE_NAME`_CommandTable[] =
 };
 	
 /* ------------------------------------------------------------------------ */
-/* Buffer to hold received user input on the line */
-char `$INSTANCE_NAME`_CLIlineBuffer[`$MAX_CLI_INPUT_BUFFER`];
-char `$INSTANCE_NAME`_CLIoutBuffer[`$MAX_CLI_OUTPUT_BUFFER`];
 
 int `$INSTANCE_NAME`_CLIrefresh;
 uint8 `$INSTANCE_NAME`_CLIinitVar;
@@ -124,9 +120,10 @@ void `$INSTANCE_NAME`_CliClearScreen( int argc, char **argv )
 	`$INSTANCE_NAME`_PrintString("\x1b[1;1H\x1b[2J");
 }
 /* ------------------------------------------------------------------------ */
-void `$INSTANCE_NAME`_CliShowPrompt( void )
+void `$INSTANCE_NAME`_CliShowPrompt( char *lineBuffer )
 {
 	int idx;
+	char outBuffer[11];
 	
 	`$INSTANCE_NAME`_PrintString("\r\n");
 	`$INSTANCE_NAME`_PrintStringColor("`$UserMessageString`",`$MSG_FG_COLOR`,`$MSG_BG_COLOR`);
@@ -136,9 +133,9 @@ void `$INSTANCE_NAME`_CliShowPrompt( void )
 	for(idx=0;idx<`$MAX_CLI_INPUT_BUFFER`;++idx) {
 		`$INSTANCE_NAME`_PutChar(' ');
 	}
-	sprintf(`$INSTANCE_NAME`_CLIoutBuffer,"\x1b[%dD",`$MAX_CLI_INPUT_BUFFER`);
-	`$INSTANCE_NAME`_PrintString( `$INSTANCE_NAME`_CLIoutBuffer );
-	`$INSTANCE_NAME`_PrintString(`$INSTANCE_NAME`_CLIlineBuffer);
+	sprintf(outBuffer,"\x1b[%dD",`$MAX_CLI_INPUT_BUFFER`);
+	`$INSTANCE_NAME`_PrintString( outBuffer );
+	`$INSTANCE_NAME`_PrintString( lineBuffer);
 }
 /* ------------------------------------------------------------------------ */
 int `$INSTANCE_NAME`_CliGetArguments( char *buffer, int *argc, char **argv )
@@ -159,7 +156,7 @@ int `$INSTANCE_NAME`_CliGetArguments( char *buffer, int *argc, char **argv )
 		 */
 		if ( isspace( (int) buffer[idx]) ) {
 			while (isspace( (int) buffer[idx]) ) {
-				`$INSTANCE_NAME`_CLIlineBuffer[idx] = 0;
+				buffer[idx] = 0;
 				++idx;
 			}
 			argv[*argc] = &buffer[idx];
@@ -173,7 +170,7 @@ int `$INSTANCE_NAME`_CliGetArguments( char *buffer, int *argc, char **argv )
 		 */
 		else if (buffer[idx] == ';') {
 			/* process the command */
-			`$INSTANCE_NAME`_CLIlineBuffer[idx] = 0;
+			buffer[idx] = 0;
 			result = CYRET_FINISHED;
 		}
 		++idx;
@@ -196,6 +193,9 @@ cystatus `$INSTANCE_NAME`_CliProcessCommand(const `$INSTANCE_NAME`_CLI_COMMAND *
 {
 	int idx;
 	`$INSTANCE_NAME`_CLIfunc fn;
+	
+	static char outBuffer[`$MAX_CLI_OUTPUT_BUFFER`];
+	
 	cystatus result;
 	
 	result = CYRET_UNKNOWN;
@@ -211,68 +211,27 @@ cystatus `$INSTANCE_NAME`_CliProcessCommand(const `$INSTANCE_NAME`_CLI_COMMAND *
 				}
 				else {
 					result = CYRET_INVALID_OBJECT;
-					sprintf(`$INSTANCE_NAME`_CLIoutBuffer,"\"%s\" has not yet been implemented.",argv[0]);
-					`$INSTANCE_NAME`_SystemMsg(`$INSTANCE_NAME`_CLIoutBuffer,`$INSTANCE_NAME`_WARN);
+					sprintf(outBuffer,"\"%s\" has not yet been implemented.",argv[0]);
+					`$INSTANCE_NAME`_SystemMsg(outBuffer,`$INSTANCE_NAME`_WARN);
 				}
 			}
 			++idx;
 		}
 		
 		if (result == CYRET_UNKNOWN) {
-			sprintf(`$INSTANCE_NAME`_CLIoutBuffer,"Unknown Command \"%s\"",argv[0]);
-			`$INSTANCE_NAME`_SystemMsg(`$INSTANCE_NAME`_CLIoutBuffer, `$INSTANCE_NAME`_ERROR);
+			sprintf(outBuffer,"Unknown Command \"%s\"",argv[0]);
+			`$INSTANCE_NAME`_SystemMsg(outBuffer, `$INSTANCE_NAME`_ERROR);
 		}
 	}
 	return result;
 }
-/* ------------------------------------------------------------------------ */
- void `$INSTANCE_NAME`_CliIdle( const `$INSTANCE_NAME`_CLI_COMMAND *tbl, uint8 refresh )
-{
-	cystatus result;
-	int idx;
-	int argc;
-	char* argv[25];
-	
-	/*
-	 * read data from the COM port (USBUART) in to a line buffer without
-	 * blocking. Then, when the user has pressed enter, process the data
-	 * to split the arguments and commands for the line of text.
-	 */
-	if (`$INSTANCE_NAME`_CLIrefresh == 0) {
-		`$INSTANCE_NAME`_CLIrefresh = 1;
-		`$INSTANCE_NAME`_CLIlineBuffer[0] = 0;
-		refresh = 1;
-	}
-	
-	/*
-	 * when refresh is on, re-send the CLI prompt, along with the contents
-	 * of the line buffer.  this is pretty useful when showing received data
-	 * along with the CLi.
-	 */
-	if (refresh) {
-		`$INSTANCE_NAME`_CliShowPrompt();
-	}
-	
-	result = `$INSTANCE_NAME`_GetString( `$INSTANCE_NAME`_CLIlineBuffer );
-	if (result == CYRET_FINISHED) {
-		idx = 0;
-		while ( `$INSTANCE_NAME`_CLIlineBuffer[ idx ] != 0) {
-			idx += `$INSTANCE_NAME`_CliGetArguments(&`$INSTANCE_NAME`_CLIlineBuffer[idx],&argc,argv);
-			if (argc > 0) {
-				`$INSTANCE_NAME`_CliProcessCommand(tbl,argc,argv);
-			}
-		}
-		`$INSTANCE_NAME`_CLIrefresh = 0;
-	}
-}
 /* ======================================================================== */
-#if (`$vCliTask` == 1)
-/* ------------------------------------------------------------------------ */
-	#include "`$FreeRTOS`.h"
-	#include "`$FreeRTOS`_task.h"
 	
 void `$INSTANCE_NAME`_vCliTask( void *pvParameters )
 {
+	/* Buffer to hold received user input on the line */
+	static char lineBuffer[`$MAX_CLI_INPUT_BUFFER`];
+	
  	`$INSTANCE_NAME`_CLI_COMMAND *CommandTable;
 	int idx;
 	char lookahead;
@@ -303,7 +262,7 @@ void `$INSTANCE_NAME`_vCliTask( void *pvParameters )
 	 * connection, and make sure that the prompts are visible.
 	 */
 	`$INSTANCE_NAME`_GetChar();
-	
+	lineBuffer[0] = 0;
 	/*
 	 * The connection has been validated, this merge region allows the
 	 * definition of functions that are performed once the connection
@@ -318,47 +277,29 @@ void `$INSTANCE_NAME`_vCliTask( void *pvParameters )
 		/*
 		 * Wait for user input.
 		 */
-		`$INSTANCE_NAME`_CliShowPrompt();	
-		/* Read the inpt line from the user with blocking functions */
-		lookahead = 0;
-		while ( (lookahead != '\r') && (lookahead != '\n') ) {
-			ch = `$INSTANCE_NAME`_GetChar();
-			lookahead = (char)`$INSTANCE_NAME`_QPeek(`$INSTANCE_NAME`_RxQ);
-			if ( (ch == '\b') || (ch == 127) ) {
-				`$INSTANCE_NAME`_CLIlineBuffer[idx] = 0;
-				if (idx>0) {
-					idx--;
-				}
-			}
-			else {
-				`$INSTANCE_NAME`_CLIlineBuffer[idx++] = ch;
-			}
-			`$INSTANCE_NAME`_CLIlineBuffer[idx] = 0;
-		}
-	
-		if ( (lookahead == '\r') || (lookahead == '\n') ) {
-			do {
-				`$INSTANCE_NAME`_GetChar(); /* Remove the EOL character from buffer */
-				lookahead = `$INSTANCE_NAME`_QPeek(`$INSTANCE_NAME`_RxQ);
-			}
-			while( (lookahead == '\r') || (lookahead == '\n') );
-		}
+		`$INSTANCE_NAME`_CliShowPrompt(lineBuffer);
+		
+		/* Read the input line from the user with blocking functions */
+		`$INSTANCE_NAME`_GetString( lineBuffer );
 		
 		/*
-		 * Execute the shell processor code
+		 * Strip arguments from the line buffer, and handle compound
+		 * statements by looping through the input buffer until the NULL
+		 * is encountered.
 		 */
 		idx = 0;
-		while ( `$INSTANCE_NAME`_CLIlineBuffer[ idx ] != 0) {
-			idx += `$INSTANCE_NAME`_CliGetArguments(&`$INSTANCE_NAME`_CLIlineBuffer[idx],&argc,argv);
+		while ( lineBuffer[ idx ] != 0) {
+			idx += `$INSTANCE_NAME`_CliGetArguments(&lineBuffer[idx],&argc,argv);
 			if (argc > 0) {
 				`$INSTANCE_NAME`_CliProcessCommand(CommandTable,argc,argv);
 			}
 		}
-		memset((void*)&`$INSTANCE_NAME`_CLIlineBuffer[0],0,idx);
+		
+		/* Erase the contents of the line buffer at the end of the command */
+		memset((void*)&lineBuffer[0],0,idx);
 	}
 }
 /* ------------------------------------------------------------------------ */
-#endif
 
 #endif
 /* ------------------------------------------------------------------------ */

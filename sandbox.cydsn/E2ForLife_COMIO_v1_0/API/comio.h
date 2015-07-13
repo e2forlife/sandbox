@@ -39,10 +39,14 @@
 #define `$INSTANCE_NAME`_USB_MODE        ( `$USING_USB` )
 	
 void `$INSTANCE_NAME`_Start( void );
-#define `$INSTANCE_NAME`_Enable           `$INSTANCE_NAME`_Idle
 void `$INSTANCE_NAME`_Init( void );
+void `$INSTANCE_NAME`_Enable( void );
 
-void `$INSTANCE_NAME`_Idle( void );
+void `$INSTANCE_NAME`_ReaderTask( void *pvParameters );
+void `$INSTANCE_NAME`_WriterTask( void *pvParameters );
+
+
+
 char `$INSTANCE_NAME`_GetChar( void );
 cystatus `$INSTANCE_NAME`_PutChar( char ch );
 cystatus `$INSTANCE_NAME`_PrintString( const char *str );
@@ -51,9 +55,6 @@ cystatus `$INSTANCE_NAME`_ClearLine(uint8 mode);
 cystatus `$INSTANCE_NAME`_Position(uint8 row, uint8 col);
 cystatus `$INSTANCE_NAME`_PrintStringColor(const char *str, uint8 fg, uint8 bg);
 cystatus `$INSTANCE_NAME`_GetString( char *str );
-void `$INSTANCE_NAME`_ClearFifo( void );
-void `$INSTANCE_NAME`_ClearTxBuffer( void );
-void `$INSTANCE_NAME`_ClearRxBuffer( void );
 uint16 `$INSTANCE_NAME`_ScanKey( void );
 
 #define `$INSTANCE_NAME`_HideCursor        ( `$INSTANCE_NAME`_PutString("\x1b[?25l") )
@@ -74,7 +75,10 @@ uint16 `$INSTANCE_NAME`_ScanKey( void );
 #define `$INSTANCE_NAME`_KEY_LEFT       ( 'D' )
 #define `$INSTANCE_NAME`_KEY_RIGHT      ( 'C' )
 
-#define `$INSTANCE_NAME`_KEY_CTRL       ( 0x8000 )
+#define `$INSTANCE_NAME`_KEY_CSI       ( 0x0100 )
+#define `$INSTANCE_NAME`_KEY_CTRL      ( 0x0200 )
+#define `$INSTANCE_NAME`_KEY_SHFT      ( 0x0300 )
+
 /* ------------------------------------------------------------------------ */
 
 #if (`$INCLUDE_CLI` == 1)
@@ -104,6 +108,7 @@ typedef struct {
 void `$INSTANCE_NAME`_CliIdle( const `$INSTANCE_NAME`_CLI_COMMAND *tbl, uint8 refresh );
 void `$INSTANCE_NAME`_SystemMsg(const char *str, uint8 level);
 int `$INSTANCE_NAME`_CliGetArguments( char *buffer, int *argc, char **argv );
+
 void `$INSTANCE_NAME`_CliHelp( int argc, char **argv );
 void `$INSTANCE_NAME`_CliClearScreen( int argc, char **argv );
 
@@ -111,11 +116,7 @@ void `$INSTANCE_NAME`_CliClearScreen( int argc, char **argv );
  * When the CLI TASK option is selected, add in the prototype for the
  * CLI task.
  */
-#if (`$vCliTask` == 1)
-
-	void `$INSTANCE_NAME`_vCliTask( void *pvParameters );
-
-#endif
+void `$INSTANCE_NAME`_vCliTask( void *pvParameters );
 
 
 #endif

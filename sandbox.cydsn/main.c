@@ -31,6 +31,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+
+void vMainTask( void *pvParameters);
+
+
 int main()
 {
 	CyGlobalIntEnable;
@@ -42,12 +46,28 @@ int main()
 	COMIO_Start();
 	PWM_Start();
 	
+	//xTaskCreate( vMainTask, "MAIN Task", 200, NULL, 1, NULL );
 	FreeRTOS_Start();
 	
     for(;;);
 }
 
 
-
+void vMainTask( void *pvParameters)
+{
+	int blink;
+	char ch;
+	
+	blink = 70;	
+	for(;;) {
+		//ch = COMIO_GetChar();
+		//COMIO_PutChar(ch);
+		
+		//PWM_WriteCompare( blink );
+		//blink = (blink == 250)?70:(blink+10);
+		
+		vTaskDelay( 100/portTICK_PERIOD_MS);
+	}
+}
 
 /* [] END OF FILE */
