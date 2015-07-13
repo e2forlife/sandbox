@@ -113,7 +113,7 @@ void `$INSTANCE_NAME`_CliClearScreen( int argc, char **argv );
  */
 #if (`$vCliTask` == 1)
 
-	void vCliTask( void *pvParameters );
+	void `$INSTANCE_NAME`_vCliTask( void *pvParameters );
 
 #endif
 

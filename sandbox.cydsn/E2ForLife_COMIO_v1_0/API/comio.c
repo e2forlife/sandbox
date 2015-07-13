@@ -31,16 +31,12 @@
 #include <stdio.h>
 
 #include "`$INSTANCE_NAME`.h"
+
 #include "`$COM_INSTANCE`.h"
-
-#if (`$INSTANCE_NAME`_USB_MODE == `$INSTANCE_NAME`_YES)
 #include "`$COM_INSTANCE`_cdc.h"
-#endif
 
-#if (`$USE_FREERTOS` == 1)
-	#include "`$FreeRTOS`.h"
-	#include "`$FreeRTOS`_task.h"
-#endif
+#include "`$FreeRTOS`.h"
+#include "`$FreeRTOS`_task.h"
 
 #if (`$INCLUDE_CLI`==1)
 
@@ -49,23 +45,8 @@
 #endif
 
 /* ======================================================================== */
-#define `$INSTANCE_NAME`_QMAX_IDX      ( 2 )
-#define `$INSTANCE_NAME`_QSIZE_IDX     ( 0 )
-#define `$INSTANCE_NAME`_QREAD_IDX     ( 4 )
-#define `$INSTANCE_NAME`_QWRITE_IDX    ( 6 )
-#define `$INSTANCE_NAME`_QBASE_IDX     ( 8 )
-
-#define `$INSTANCE_NAME`_QReadPtr(q)   ( *((uint16*)&q[ `$INSTANCE_NAME`_QREAD_IDX ]) )
-#define `$INSTANCE_NAME`_QWritePtr(q)  ( *((uint16*)&q[ `$INSTANCE_NAME`_QWRITE_IDX ]) )
-#define `$INSTANCE_NAME`_QSize(q)      ( *((uint16*)&q[ `$INSTANCE_NAME`_QSIZE_IDX ]))
-#define `$INSTANCE_NAME`_QMax(q)       ( *((uint16*)&q[ `$INSTANCE_NAME`_QMAX_IDX]))
-#define `$INSTANCE_NAME`_QData(q,i)    ( *((uint8*)&q[ i + `$INSTANCE_NAME`_QBASE_IDX]))
-
-/* Local Receive FIFO */
-uint8 `$INSTANCE_NAME`_RxQ[ `$INSTANCE_NAME`_RX_SIZE + 8];
-
-/* Local Transmit FIFO */
-uint8 `$INSTANCE_NAME`_TxQ[ `$INSTANCE_NAME`_TX_SIZE + 8 ];
+QueueHandle_t `$INSTANCE_NAME`_RxQ;
+QueueHandle_t `$NISTANCE_NAME`_TxQ;
 
 uint8 `$INSTANCE_NAME`_initVar;
 
@@ -83,10 +64,8 @@ void `$INSTANCE_NAME`_Start( void )
 void `$INSTANCE_NAME`_Init( void )
 {
 	/* Initialize USB Buffers */
-	memset((void*)`$INSTANCE_NAME`_RxQ, 0, `$INSTANCE_NAME`_RX_SIZE + 8);
-	memset((void*)`$INSTANCE_NAME`_TxQ, 0, `$INSTANCE_NAME`_TX_SIZE + 8);
-	`$INSTANCE_NAME`_QMax(`$INSTANCE_NAME`_RxQ) = `$INSTANCE_NAME`_RX_SIZE;
-	`$INSTANCE_NAME`_QMax(`$INSTANCE_NAME`_TxQ) = `$INSTANCE_NAME`_TX_SIZE;
+	`$INSTANCE_NAME`_RxQ = xQueueCreate( `$RX_SIZE`, 1 );
+	`$INSTANCE_NAME`_TxQ = xQueueCreate( `$TX_SIZE`, 1 );
 	
 	
     /* Enable Global Interrupts */
@@ -101,122 +80,76 @@ void `$INSTANCE_NAME`_Init( void )
 		#endif
 	}
 	
-	#if ( (`$AutoSpawn_Task` == 1)&&(`$vCliTask` == 1)&&(`$INCLUDE_CLI`==1) )
+	xTaskCreate( `$INSTANCE_NAME`_Idle,"`$INSTANCE_NAME` USB Processing", 400, NULL, 6, NULL);
+
+	#if (`$INCLUDE_CLI`==1)
 		
 		/* Initialize and start the CLI task thread */
-		xTaskCreate( vCliTask, "`$INSTANCE_NAME` CLI Task", 600, (void*)&`$INSTANCE_NAME`_CommandTable[0],6,NULL);
+		xTaskCreate( `$INSTANCE_NAME`_vCliTask, "`$INSTANCE_NAME` CLI Task", 600, (void*)&`$INSTANCE_NAME`_CommandTable[0],6,NULL);
 		
 	#endif
 	
 	`$INSTANCE_NAME`_initVar = 1;
 }	
 /* ======================================================================== */
-void `$INSTANCE_NAME`_QWrite(uint8* q, uint8 value)
-{
-	/*
-	 * first check for overflow on received data and adjust the Q so that
-	 * there is room for the new byte.
-	 */
-	if (`$INSTANCE_NAME`_QSize(q) >= `$INSTANCE_NAME`_QMax(q) ) {
-		`$INSTANCE_NAME`_QSize(q) = `$INSTANCE_NAME`_QSize(q) - 1;
-		`$INSTANCE_NAME`_QReadPtr(q) = `$INSTANCE_NAME`_QReadPtr(q) + 1;
-		if (`$INSTANCE_NAME`_QReadPtr(q) >= `$INSTANCE_NAME`_QMax(q) ) {
-			`$INSTANCE_NAME`_QReadPtr(q) = 0;
-		}
-	}
-	
-	`$INSTANCE_NAME`_QData(q,`$INSTANCE_NAME`_QWritePtr(q)) = value;
-	`$INSTANCE_NAME`_QWritePtr(q) = `$INSTANCE_NAME`_QWritePtr(q) + 1;
-	if (`$INSTANCE_NAME`_QWritePtr(q) >= `$INSTANCE_NAME`_QMax(q) ) {
-		`$INSTANCE_NAME`_QWritePtr(q) = 0;
-	}	
-}
-/* ------------------------------------------------------------------------ */
-uint8 `$INSTANCE_NAME`_QRead(uint8* q)
-{
-	uint8 value;
-	
-	value = 0xFF;
-	if (`$INSTANCE_NAME`_QSize(q) > 0) {
-		value = `$INSTANCE_NAME`_QData(q, `$INSTANCE_NAME`_QReadPtr(q));
-		`$INSTANCE_NAME`_QReadPtr(q) = `$INSTANCE_NAME`_QReadPtr(q) + 1;
-		if (`$INSTANCE_NAME`_QReadPtr(q) >= `$INSTANCE_NAME`_QMax(q) ) {
-			`$INSTANCE_NAME`_QReadPtr(q) = 0;
-		}
-		`$INSTANCE_NAME`_QSize(q) = `$INSTANCE_NAME`_QSize(q) - 1;
-	}
-	return value;
-}
-/* ------------------------------------------------------------------------ */
-uint8 `$INSTANCE_NAME`_QPeek( uint8* q )
-{
-	uint8 value;
-	
-	if (`$INSTANCE_NAME`_QSize(q) > 0) {
-		value = `$INSTANCE_NAME`_QData(q,`$INSTANCE_NAME`_QReadPtr(q));
-	}
-	else {
-		value = 0;
-	}
-	return value;
-}
-/* ======================================================================== */
-void `$INSTANCE_NAME`_Idle( void )
+void `$INSTANCE_NAME`_Idle( void *pvParameters )
 {
     uint16 count;
     uint8 buffer[`$INSTANCE_NAME`_BUFFER_LEN];
 	uint16 idx;
 	
-	/* Handle enumeration of USB port */
-    if(`$COM_INSTANCE`_IsConfigurationChanged() != 0u) /* Host could send double SET_INTERFACE request */
-    {
-        if(`$COM_INSTANCE`_GetConfiguration() != 0u)   /* Init IN endpoints when device configured */
-        {
-            /* Enumeration is done, enable OUT endpoint for receive data from Host */
-            `$COM_INSTANCE`_CDC_Init();
-        }
-    }
-	/* Service the USB CDC */
-    if(`$COM_INSTANCE`_GetConfiguration() != 0u)
-    {
-        if(`$COM_INSTANCE`_DataIsReady() != 0u)               /* Check for input data from PC */
-        {   
-            count = `$COM_INSTANCE`_GetAll(buffer);           /* Read received data and re-enable OUT endpoint */
-            if(count != 0u)
-            {
-				/* insert data in to Receive FIFO */
-				for(idx=0;idx<count;++idx) {
-					`$INSTANCE_NAME`_QWrite(`$INSTANCE_NAME`_RxQ, buffer[idx]);
+	for (;;) {
+		/* Handle enumeration of USB port */
+	    if(`$COM_INSTANCE`_IsConfigurationChanged() != 0u) /* Host could send double SET_INTERFACE request */
+	    {
+	        if(`$COM_INSTANCE`_GetConfiguration() != 0u)   /* Init IN endpoints when device configured */
+	        {
+	            /* Enumeration is done, enable OUT endpoint for receive data from Host */
+	            `$COM_INSTANCE`_CDC_Init();
+	        }
+	    }
+		/* Service the USB CDC */
+	    if(`$COM_INSTANCE`_GetConfiguration() != 0u)
+	    {
+	        if(`$COM_INSTANCE`_DataIsReady() != 0u)               /* Check for input data from PC */
+	        {   
+	            count = `$COM_INSTANCE`_GetAll(buffer);           /* Read received data and re-enable OUT endpoint */
+	            if(count != 0u)
+	            {
+					/* insert data in to Receive FIFO */
+					for(idx=0;idx<count;++idx) {
+						`$INSTANCE_NAME`_QWrite(`$INSTANCE_NAME`_RxQ, buffer[idx]);
+					}
 				}
 			}
+			/*
+			 * detrmine if there is data to be sent from the buffer to the host,
+			 * and send a block of data from the FIFO up to the endpoint limit.
+			 */
+			if (`$INSTANCE_NAME`_QSize(`$INSTANCE_NAME`_TxQ ) > 0) {
+				/* Wait till component is ready to send more data to the PC */			
+	            while(`$COM_INSTANCE`_CDCIsReady() == 0u) {
+					;
+				}
+				count = 0;
+				while ( (count < `$INSTANCE_NAME`_BUFFER_LEN) && (`$INSTANCE_NAME`_QSize(`$INSTANCE_NAME`_TxQ) > 0) ) {
+					buffer[count++] = `$INSTANCE_NAME`_QRead(`$INSTANCE_NAME`_TxQ);
+				}
+				/* Send data back to host */
+	            `$COM_INSTANCE`_PutData(buffer, count);
+	            /* If the last sent packet is exactly maximum packet size, 
+	             *  it shall be followed by a zero-length packet to assure the
+	             *  end of segment is properly identified by the terminal.
+	             */
+	            if(count == `$INSTANCE_NAME`_BUFFER_LEN){
+					/* Wait till component is ready to send more data to the PC */
+	                while(`$COM_INSTANCE`_CDCIsReady() == 0u) {
+						;
+					}
+	                `$COM_INSTANCE`_PutData(NULL, 0u);         /* Send zero-length packet to PC */
+	            }
+	        }  
 		}
-		/*
-		 * detrmine if there is data to be sent from the buffer to the host,
-		 * and send a block of data from the FIFO up to the endpoint limit.
-		 */
-		if (`$INSTANCE_NAME`_QSize(`$INSTANCE_NAME`_TxQ ) > 0) {
-#if (`$INSTANCE_NAME`_BLOCKING_SEND == `$INSTANCE_NAME`_YES)
-			/* Wait till component is ready to send more data to the PC */			
-            while(`$COM_INSTANCE`_CDCIsReady() == 0u);
-#else
-			if (`$COM_INSTANCE`_CDCIsReady() == 0) return;
-#endif
-			count = 0;
-			while ( (count < `$INSTANCE_NAME`_BUFFER_LEN) && (`$INSTANCE_NAME`_QSize(`$INSTANCE_NAME`_TxQ) > 0) ) {
-				buffer[count++] = `$INSTANCE_NAME`_QRead(`$INSTANCE_NAME`_TxQ);
-			}
-			/* Send data back to host */
-            `$COM_INSTANCE`_PutData(buffer, count);
-            /* If the last sent packet is exactly maximum packet size, 
-             *  it shall be followed by a zero-length packet to assure the
-             *  end of segment is properly identified by the terminal.
-             */
-            if(count == `$INSTANCE_NAME`_BUFFER_LEN){
-				/* Wait till component is ready to send more data to the PC */
-                while(`$COM_INSTANCE`_CDCIsReady() == 0u); 
-                `$COM_INSTANCE`_PutData(NULL, 0u);         /* Send zero-length packet to PC */
-            }
-        }  
 	}
 }
 /* ------------------------------------------------------------------------ */

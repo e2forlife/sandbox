@@ -271,7 +271,7 @@ cystatus `$INSTANCE_NAME`_CliProcessCommand(const `$INSTANCE_NAME`_CLI_COMMAND *
 	#include "`$FreeRTOS`.h"
 	#include "`$FreeRTOS`_task.h"
 	
-void vCliTask( void *pvParameters )
+void `$INSTANCE_NAME`_vCliTask( void *pvParameters )
 {
  	`$INSTANCE_NAME`_CLI_COMMAND *CommandTable;
 	int idx;
