@@ -40,12 +40,6 @@
 #include "`$FreeRTOS`_queue.h"
 #include "`$FreeRTOS`_semphr.h"
 
-#if (`$INCLUDE_CLI`==1)
-
-	extern `$INSTANCE_NAME`_CLI_COMMAND *`$INSTANCE_NAME`_CommandTable;
-
-#endif
-
 /* ======================================================================== */
 
 xQueueHandle `$INSTANCE_NAME`_RxQ;
@@ -87,14 +81,6 @@ void `$INSTANCE_NAME`_Init( void )
 	if ( (`$INSTANCE_NAME`_RxQ != NULL) && (`$INSTANCE_NAME`_TxQ != NULL) ) {
 		
 		xTaskCreate( `$INSTANCE_NAME`_ReaderTask,"`$INSTANCE_NAME` USB Read/Control Task", 400, NULL, `$USB_PRIORITY`, NULL);
-		xTaskCreate( `$INSTANCE_NAME`_WriterTask,"`$INSTANCE_NAME` USB Output Task", 400, NULL, `$USB_PRIORITY`, NULL);
-
-		#if (`$INCLUDE_CLI`==1)
-			
-			/* Initialize and start the CLI task thread */
-			xTaskCreate( `$INSTANCE_NAME`_vCliTask, "`$INSTANCE_NAME` CLI Task", 600, (void*)&`$INSTANCE_NAME`_CommandTable[0],`$CLI_PRIORITY`,NULL);
-		
-		#endif
 	
 		`$INSTANCE_NAME`_initVar = 1;
 	}
@@ -131,17 +117,18 @@ void `$INSTANCE_NAME`_ReaderTask( void *pvParameters )
 	            	`$COM_INSTANCE`_CDC_Init();
 	        	}
 	    	}
-		}
-		xSemaphoreGive( `$INSTANCE_NAME`_UsbDevice );
-		
-		/* Service the USB CDC */
-		xSemaphoreTake( `$INSTANCE_NAME`_UsbDevice, portMAX_DELAY);
-		{
+			/*
+			 *
+			 */
 		    if(`$COM_INSTANCE`_GetConfiguration() != 0u)
 		    {
-		        if(`$COM_INSTANCE`_DataIsReady() != 0u)               /* Check for input data from PC */
+				/*
+				 * Process received data from the USB, and store it in to the
+				 * receiver message Q.
+				 */
+		        if(`$COM_INSTANCE`_DataIsReady() != 0u)
 		        {   
-		            count = `$COM_INSTANCE`_GetAll(buffer);           /* Read received data and re-enable OUT endpoint */
+		            count = `$COM_INSTANCE`_GetAll(buffer);
 		            if(count != 0u)
 		            {
 						/* insert data in to Receive FIFO */
@@ -153,46 +140,30 @@ void `$INSTANCE_NAME`_ReaderTask( void *pvParameters )
 						}
 					}
 				}
-			}
-		}
-		xSemaphoreGive( `$INSTANCE_NAME`_UsbDevice);
-		
-		vTaskDelay(`$USB_SCAN_RATE`/portTICK_PERIOD_MS);
-	}
-}
-/* ------------------------------------------------------------------------ */
-void `$INSTANCE_NAME`_WriterTask( void *pvParameters )
-{
-    uint16 count;
-    uint8 buffer[`$INSTANCE_NAME`_BUFFER_LEN];
-	uint16 idx;
-	portBASE_TYPE xStatus;
-	
-	for (;;) {
-		/* Service the USB CDC */
-		xSemaphoreTake( `$INSTANCE_NAME`_UsbDevice, portMAX_DELAY);
-		{
-		    if(`$COM_INSTANCE`_GetConfiguration() != 0u)
-		    {
 				/*
-				 * build a buffer of data to send back over the USB COM port.
+				 * Send a block of data ack through the USB port to the PC,
+				 * by checkig to see if there is data to send, then sending
+				 * up to the BUFFER_LEN of data (64 bytes)
 				 */
 				count = uxQueueMessagesWaiting( `$INSTANCE_NAME`_TxQ );
 				count = (count > `$INSTANCE_NAME`_BUFFER_LEN)? `$INSTANCE_NAME`_BUFFER_LEN:count;
 				
-				/* Wait till component is ready to send more data to the PC */			
+				/* When component is ready to send more data to the PC */			
 	            if ( (`$COM_INSTANCE`_CDCIsReady() != 0u) && (count > 0) ) {
-					taskENTER_CRITICAL();
+					/*
+					 * Read the data from the transmit queue and buffer it
+					 * locally so that the data can be utilized.
+					 */
 					for (idx = 0; idx < count; ++idx) {
-						xStatus = xQueueReceive( `$INSTANCE_NAME`_TxQ,&buffer[idx], `$USB_SCAN_RATE`/portTICK_RATE_MS);
+						xQueueReceive( `$INSTANCE_NAME`_TxQ,&buffer[idx], `$USB_SCAN_RATE`/portTICK_RATE_MS);
 					}
 					/* Send data back to host */
 	    	        `$COM_INSTANCE`_PutData(buffer, count);
 					
 					/* If the last sent packet is exactly maximum packet size, 
 	            	 *  it shall be followed by a zero-length packet to assure the
-	             	*  end of segment is properly identified by the terminal.
-	             	*/
+	             	 *  end of segment is properly identified by the terminal.
+	             	 */
 	            	if(count == `$INSTANCE_NAME`_BUFFER_LEN){
 						/* Wait till component is ready to send more data to the PC */
 	                	while(`$COM_INSTANCE`_CDCIsReady() == 0u) {
@@ -200,7 +171,6 @@ void `$INSTANCE_NAME`_WriterTask( void *pvParameters )
 						}
 	                	`$COM_INSTANCE`_PutData(NULL, 0u);         /* Send zero-length packet to PC */
 	            	} 
-					taskEXIT_CRITICAL();
 				}
 			}
 		}
@@ -304,31 +274,39 @@ cystatus `$INSTANCE_NAME`_GetString(char *str)
 {
 	cystatus result;
 	char ch;
-	char lookahead;
 	int idx;
-	portBASE_TYPE xStatus;
 	
 	result = CYRET_STARTED;
 	idx = 0;
-	xStatus = xQueuePeek( `$INSTANCE_NAME`_RxQ, &lookahead, portMAX_DELAY);
 	
+	ch = `$INSTANCE_NAME`_GetChar();
 	/* 
 	 * While there are no EOL character read, read the data fro mthe queue,
 	 * and take a peek at the next data in the buffer.
 	 */
-	while ( (lookahead != '\r') && (lookahead != '\n') ) {
-		ch = `$INSTANCE_NAME`_GetChar();
-		xStatus = xQueuePeek( `$INSTANCE_NAME`_RxQ, &lookahead, portMAX_DELAY);
+	while ( (ch != '\r') && (ch != '\n') ) {
+		/*
+		 * When a backspace has been read, remove the last read character
+		 * from the input buffer, and output a destructive backspace character
+		 * so that the terminal will clear the character from the display.
+		 */
 		if ( (ch == '\b') || (ch == 127) ) {
 			str[idx] = 0;
 			if (idx>0) {
 				idx--;
 			}
 			`$INSTANCE_NAME`_PrintString("\b \b");
+			ch = `$INSTANCE_NAME`_GetChar();
 		}
-		else {
+		/*
+		 * When a newline is read, push the character back in to the
+		 * queue, since we don't want it, and don't read anymore data
+		 * from the queue.
+		 */
+		else if ((ch!='\r')&&(ch!='\n')) {
 			str[idx++] = ch;
 			`$INSTANCE_NAME`_PutChar( ch );
+			ch = `$INSTANCE_NAME`_GetChar();
 		}
 		str[idx] = 0;
 	}
@@ -337,12 +315,14 @@ cystatus `$INSTANCE_NAME`_GetString(char *str)
 	 * Remove the lingering EOL characters from the queue to prepare reading
 	 * of the next string.
 	 */
-	if ( (lookahead == '\r') || (lookahead == '\n') ) {
-		do {
-			`$INSTANCE_NAME`_GetChar(); /* Remove the EOL character from buffer */
-			xStatus = xQueuePeek( `$INSTANCE_NAME`_RxQ, &lookahead, portMAX_DELAY);
+	if ( (ch == '\r') || (ch == '\n') ) {
+		while( ((ch == '\r') || (ch == '\n')) && (uxQueueMessagesWaiting(`$INSTANCE_NAME`_RxQ) > 0) );
+		{
+			ch = `$INSTANCE_NAME`_GetChar(); /* Remove the EOL character from buffer */
+			if ( (ch != '\r') && (ch != '\n') ) {
+				xQueueSendToFront( `$INSTANCE_NAME`_RxQ, &ch, 100/portTICK_PERIOD_MS);
+			}
 		}
-		while( (lookahead == '\r') || (lookahead == '\n') );
 		result = CYRET_FINISHED;
 	}
 	return result;
@@ -356,9 +336,8 @@ uint16 `$INSTANCE_NAME`_ScanKey( void )
 	uint16 result;
 	char ch;
 	
-	`$INSTANCE_NAME`_Idle();
-	result = 0;
-	if (`$INSTANCE_NAME`_QSize(`$INSTANCE_NAME`_RxQ) > 0) {
+	result = 0xFF00;
+	if (uxQueueMessagesWaiting( `$INSTANCE_NAME`_RxQ ) > 0) {
 		ch = `$INSTANCE_NAME`_GetChar();
 		if (ch == '\x1b') {
 			ch = `$INSTANCE_NAME`_GetChar(); /* wait for bracket */

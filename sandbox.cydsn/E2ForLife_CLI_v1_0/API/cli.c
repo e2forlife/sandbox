@@ -27,14 +27,13 @@
  */
 /* ======================================================================== */
 
-#if (`$INCLUDE_CLI` == 1)
-
 #include <cytypes.h>
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
 	
 #include "`$INSTANCE_NAME`.h"
+#include "`$COM_INSTANCE`.h"
 
 #include "`$FreeRTOS`.h"
 #include "`$FreeRTOS`_task.h"
@@ -42,82 +41,84 @@
 	
 /* ------------------------------------------------------------------------ */
 	
-const `$INSTANCE_NAME`_CLI_COMMAND `$INSTANCE_NAME`_CommandTable[] =
-{
-	{ "help", `$INSTANCE_NAME`_CliHelp, "List available commands and descriptions" },
-	{ "cls",  `$INSTANCE_NAME`_CliClearScreen, "Clear Display." },
-	/* -------------------------------------------------------------------- */
-	/* `#START USER_COMMAND_TABLE` */
-	
-	
-	/* `#END` */
-	/* -------------------------------------------------------------------- */
-	{ "", NULL,"End of Command Table"}	
-};
-	
+`$INSTANCE_NAME`_CLI_COMMAND `$INSTANCE_NAME`_CommandTable[ `$CLI_COMMANDS` ];
+
 /* ------------------------------------------------------------------------ */
 
 int `$INSTANCE_NAME`_CLIrefresh;
 uint8 `$INSTANCE_NAME`_CLIinitVar;
 
 /* ------------------------------------------------------------------------ */
+void `$INSTANCE_NAME`_Start( void )
+{
+	/*
+	 * Register commands for help and clear
+	 */
+	`$INSTANCE_NAME`_RegisterCommand(`$INSTANCE_NAME`_CliHelp,"help","Display command table descriptions");
+	`$INSTANCE_NAME`_RegisterCommand(`$INSTANCE_NAME`_CliClearScreen,"cls","Clear the screen");
+	
+	xTaskCreate( `$INSTANCE_NAME`_vCliTask, "Cli Task", 600, (void*)&`$INSTANCE_NAME`_CommandTable[0], `$CLI_PRIORITY`, NULL);
+}
+/* ------------------------------------------------------------------------ */
 void `$INSTANCE_NAME`_SystemMsg(const char *str, uint8 level)
 {
 	switch(level) {
 		case `$INSTANCE_NAME`_NOTE:
-			`$INSTANCE_NAME`_PrintStringColor("\r\n[NOTE]",15,0);
-			`$INSTANCE_NAME`_PrintString(": ");
-			`$INSTANCE_NAME`_PrintStringColor(str,2,0);
+			`$COM_INSTANCE`_PrintStringColor("\r\n[NOTE]",15,0);
+			`$COM_INSTANCE`_PrintString(": ");
+			`$COM_INSTANCE`_PrintStringColor(str,2,0);
 			break;
 		case `$INSTANCE_NAME`_WARN:
-			`$INSTANCE_NAME`_PrintStringColor("\r\n[WARNING]",15,0);
-			`$INSTANCE_NAME`_PrintString(": ");
-			`$INSTANCE_NAME`_PrintStringColor(str,3,0);
+			`$COM_INSTANCE`_PrintStringColor("\r\n[WARNING]",15,0);
+			`$COM_INSTANCE`_PrintString(": ");
+			`$COM_INSTANCE`_PrintStringColor(str,3,0);
 			break;
 		case `$INSTANCE_NAME`_ERROR:
-			`$INSTANCE_NAME`_PrintStringColor("\r\n[ERROR]",15,0);
-			`$INSTANCE_NAME`_PrintString(": ");
-			`$INSTANCE_NAME`_PrintStringColor(str,1,0);
+			`$COM_INSTANCE`_PrintStringColor("\r\n[ERROR]",15,0);
+			`$COM_INSTANCE`_PrintString(": ");
+			`$COM_INSTANCE`_PrintStringColor(str,1,0);
 			break;
 		case `$INSTANCE_NAME`_FATAL:
-			`$INSTANCE_NAME`_PrintStringColor("\r\n[FATAL]",15,0);
-			`$INSTANCE_NAME`_PrintString(": ");
-			`$INSTANCE_NAME`_PrintStringColor(str,9,0);
+			`$COM_INSTANCE`_PrintStringColor("\r\n[FATAL]",15,0);
+			`$COM_INSTANCE`_PrintString(": ");
+			`$COM_INSTANCE`_PrintStringColor(str,9,0);
 			break;
 		default:
-			`$INSTANCE_NAME`_PrintStringColor("\r\n[????]",15,0);
-			`$INSTANCE_NAME`_PrintString(": ");
-			`$INSTANCE_NAME`_PrintStringColor(str,5,0);
+			`$COM_INSTANCE`_PrintStringColor("\r\n[????]",15,0);
+			`$COM_INSTANCE`_PrintString(": ");
+			`$COM_INSTANCE`_PrintStringColor(str,5,0);
 			break;
 	}
 }
 /* ------------------------------------------------------------------------ */
-void `$INSTANCE_NAME`_CliHelp( int argc, char **argv )
+cystatus `$INSTANCE_NAME`_CliHelp( int argc, char **argv )
 {
 	int idx;
 	char bfr[51];
 	
-	`$INSTANCE_NAME`_PrintString("\x1b[1;1H\x1b[2J");
+	`$COM_INSTANCE`_PrintString("\x1b[1;1H\x1b[2J");
 	
 	idx = 0;
 	while ( strlen(`$INSTANCE_NAME`_CommandTable[idx].name) != 0) {
 		if ( strlen(`$INSTANCE_NAME`_CommandTable[idx].desc) > 0 ) {
 			sprintf(bfr,"\r\n[%10s]",`$INSTANCE_NAME`_CommandTable[idx].name);
-			`$INSTANCE_NAME`_PrintStringColor(bfr,15,0);
-			`$INSTANCE_NAME`_PrintString(" : ");
-			`$INSTANCE_NAME`_PrintStringColor(`$INSTANCE_NAME`_CommandTable[idx].desc, ((idx&0x01)?10:2),1);
+			`$COM_INSTANCE`_PrintStringColor(bfr,15,0);
+			`$COM_INSTANCE`_PrintString(" : ");
+			`$COM_INSTANCE`_PrintStringColor(`$INSTANCE_NAME`_CommandTable[idx].desc, ((idx&0x01)?10:2),0);
 		}
 		++idx;
 	}
-	`$INSTANCE_NAME`_PrintString("\r\n\n");
+	`$COM_INSTANCE`_PrintString("\r\n\n");
+	return CYRET_SUCCESS;
 }
 /* ------------------------------------------------------------------------ */
-void `$INSTANCE_NAME`_CliClearScreen( int argc, char **argv )
+cystatus `$INSTANCE_NAME`_CliClearScreen( int argc, char **argv )
 {
 	argc = argc;
 	argv = argv;
 	
-	`$INSTANCE_NAME`_PrintString("\x1b[1;1H\x1b[2J");
+	`$COM_INSTANCE`_PrintString("\x1b[1;1H\x1b[2J");
+	return CYRET_SUCCESS;
 }
 /* ------------------------------------------------------------------------ */
 void `$INSTANCE_NAME`_CliShowPrompt( char *lineBuffer )
@@ -125,18 +126,50 @@ void `$INSTANCE_NAME`_CliShowPrompt( char *lineBuffer )
 	int idx;
 	char outBuffer[11];
 	
-	`$INSTANCE_NAME`_PrintString("\r\n");
-	`$INSTANCE_NAME`_PrintStringColor("`$UserMessageString`",`$MSG_FG_COLOR`,`$MSG_BG_COLOR`);
-	`$INSTANCE_NAME`_PrintStringColor("`$UserPromptString`",`$PROMPT_FG_COLOR`,`$PROMPT_BG_COLOR`);
-	`$INSTANCE_NAME`_PrintString(" : ");
-	`$INSTANCE_NAME`_SetColor(`$INPUT_FG_COLOR`,`$INPUT_BG_COLOR`);
+	`$COM_INSTANCE`_PrintString("\r\n");
+	`$COM_INSTANCE`_PrintStringColor("`$UserMessageString`",`$MSG_FG_COLOR`,`$MSG_BG_COLOR`);
+	`$COM_INSTANCE`_PrintStringColor("`$UserPromptString`",`$PROMPT_FG_COLOR`,`$PROMPT_BG_COLOR`);
+	`$COM_INSTANCE`_PrintString(" : ");
+	`$COM_INSTANCE`_SetColor(`$INPUT_FG_COLOR`,`$INPUT_BG_COLOR`);
 	for(idx=0;idx<`$MAX_CLI_INPUT_BUFFER`;++idx) {
-		`$INSTANCE_NAME`_PutChar(' ');
+		`$COM_INSTANCE`_PutChar(' ');
 	}
 	sprintf(outBuffer,"\x1b[%dD",`$MAX_CLI_INPUT_BUFFER`);
-	`$INSTANCE_NAME`_PrintString( outBuffer );
-	`$INSTANCE_NAME`_PrintString( lineBuffer);
+	`$COM_INSTANCE`_PrintString( outBuffer );
+	`$COM_INSTANCE`_PrintString( lineBuffer);
 }
+/* ------------------------------------------------------------------------ */
+cystatus `$INSTANCE_NAME`_RegisterCommand( `$INSTANCE_NAME`_CLIfunc fn, char *cmd, char *description)
+{
+	int idx;
+	
+	cystatus result;
+	
+	result = CYRET_UNKNOWN;
+	
+	if ( fn != NULL )
+	{
+		/* look for the first available command slot in the table */
+		for( idx = 0;(idx<`$CLI_COMMANDS`)&&(strlen( `$INSTANCE_NAME`_CommandTable[idx].name) >0); ++idx);
+		if (idx <`$CLI_COMMANDS`) {
+			/*
+			 * There was a slot available in the command table, so allocate the
+			 * position, and store the command information in to the table.
+			 */
+			`$INSTANCE_NAME`_CommandTable[idx].fn = fn;
+			memcpy((void*)&`$INSTANCE_NAME`_CommandTable[idx].name[0], cmd, strlen(cmd) );
+			memcpy((void*)&`$INSTANCE_NAME`_CommandTable[idx].desc[0], description, strlen(description));
+			result = CYRET_SUCCESS;
+		}
+		
+	}
+	else {
+		result = CYRET_BAD_PARAM;
+	}
+	
+	return result;
+}
+
 /* ------------------------------------------------------------------------ */
 int `$INSTANCE_NAME`_CliGetArguments( char *buffer, int *argc, char **argv )
 {
@@ -148,32 +181,48 @@ int `$INSTANCE_NAME`_CliGetArguments( char *buffer, int *argc, char **argv )
 	*argc = 0;
 	while ( (buffer[idx] != 0) && (result == CYRET_STARTED) ) {
 		/*
-		 * when a space is detected, replace it withe a NULL to
-		 * seperate the string from the line. When a trailing space is
-		 * at the end of the line, just ignore that argument. Set the
-		 * parse status to started to singal that data needs to be
-		 * stored for the next argument.
+		 * drop leading whitespace, and set all spaces to NULL to
+		 * prevent later confusion.
 		 */
-		if ( isspace( (int) buffer[idx]) ) {
-			while (isspace( (int) buffer[idx]) ) {
-				buffer[idx] = 0;
-				++idx;
-			}
-			argv[*argc] = &buffer[idx];
-			*argc = *argc + 1;
+		while ( (buffer[idx] != 0) && isspace((int)buffer[idx]) ) {
+			buffer[idx] = 0;
+			++idx;
 		}
-		/* 
-		 * The end of a command can be the end of the buffer, or, a
-		 * semicolon can be used for the creation of compound
-		 * statements. When a semi is found, return to the processing
-		 * loop to execute the command.
+		/*
+		 * now, we know that the index is pointing to a non-space character,
+		 * so process the character based upon it's state.
 		 */
-		else if (buffer[idx] == ';') {
-			/* process the command */
+		if (buffer[idx] == ';') {
+			/* 
+			 * The end of a command can be the end of the buffer, or, a
+			 * semicolon can be used for the creation of compound
+			 * statements.
+			 * A compound statement seperator was detected, so, clear it to
+			 * form a terminator for the last argument, and then, set the
+			 * result to finished to let the processor know that the arguments
+			 * of the current command are now fully split.
+			 */
 			buffer[idx] = 0;
 			result = CYRET_FINISHED;
 		}
-		++idx;
+		/*
+		 * Otherwise, store the character location, and move the index pointer
+		 * to the next break in the input, or the end of the buffer
+		 */
+		else {
+			argv[*argc] = &buffer[idx];
+			*argc = *argc + 1;
+			while ( (!isspace((int)buffer[idx])) && (buffer[idx] != 0) ) {
+				++idx;
+			}
+			/*
+			 * Set a terminator, if a space was detected, and update the index
+			 * pointer to the next value.
+			 */
+			if ( isspace((int)buffer[idx]) ) {
+				buffer[idx++] = 0;
+			}
+		}
 	}
 	
 	return idx;
@@ -197,6 +246,11 @@ cystatus `$INSTANCE_NAME`_CliProcessCommand(const `$INSTANCE_NAME`_CLI_COMMAND *
 	static char outBuffer[`$MAX_CLI_OUTPUT_BUFFER`];
 	
 	cystatus result;
+	
+	if (tbl == NULL) {
+		`$INSTANCE_NAME`_SystemMsg("Invalid command table",`$INSTANCE_NAME`_FATAL);
+		return CYRET_UNKNOWN;
+	}
 	
 	result = CYRET_UNKNOWN;
 	fn = NULL;
@@ -234,8 +288,6 @@ void `$INSTANCE_NAME`_vCliTask( void *pvParameters )
 	
  	`$INSTANCE_NAME`_CLI_COMMAND *CommandTable;
 	int idx;
-	char lookahead;
-	char ch;
 	char *argv[25];
 	int argc;
 	
@@ -261,7 +313,7 @@ void `$INSTANCE_NAME`_vCliTask( void *pvParameters )
 	 * the second it attaches, we must wait for user input to validate the
 	 * connection, and make sure that the prompts are visible.
 	 */
-	`$INSTANCE_NAME`_GetChar();
+	`$COM_INSTANCE`_GetChar();
 	lineBuffer[0] = 0;
 	/*
 	 * The connection has been validated, this merge region allows the
@@ -280,7 +332,10 @@ void `$INSTANCE_NAME`_vCliTask( void *pvParameters )
 		`$INSTANCE_NAME`_CliShowPrompt(lineBuffer);
 		
 		/* Read the input line from the user with blocking functions */
-		`$INSTANCE_NAME`_GetString( lineBuffer );
+		`$COM_INSTANCE`_GetString( lineBuffer );
+		
+		/* Set the color to neutral to avoid screen junk when executing commands */
+		`$COM_INSTANCE`_SetColor(7,0);
 		
 		/*
 		 * Strip arguments from the line buffer, and handle compound
@@ -301,6 +356,5 @@ void `$INSTANCE_NAME`_vCliTask( void *pvParameters )
 }
 /* ------------------------------------------------------------------------ */
 
-#endif
 /* ------------------------------------------------------------------------ */
 /* [] END OF FILE */

@@ -81,45 +81,5 @@ uint16 `$INSTANCE_NAME`_ScanKey( void );
 
 /* ------------------------------------------------------------------------ */
 
-#if (`$INCLUDE_CLI` == 1)
-	
-/*
- * read function/write function pointer types
- * These types are used to fill in the symbol table, which ultimately defines
- * the symbol table commands for execution.  defining a funtion as NULL will
- * disallow the mode of operation, writes will flag an error, but reads are
- * quiet.  The value is passed as a token type for reads (not an actual value)
- * so that the writer can handle the parsing of the value string for typing.
- * i.e. POWER wants on or off.
- */
-typedef cystatus (*`$INSTANCE_NAME`_CLIfunc)( int, char** );
-
-typedef struct {
-	char name[15];   /* Command name */
-	`$INSTANCE_NAME`_CLIfunc fn;     /* Parser callback to be executed */
-	char desc[71];   /* ASCII description of function (for helper) */
-} `$INSTANCE_NAME`_CLI_COMMAND;
-	
-#define `$INSTANCE_NAME`_NOTE       ( 0 )
-#define `$INSTANCE_NAME`_WARN       ( 1 )
-#define `$INSTANCE_NAME`_ERROR      ( 2 )
-#define `$INSTANCE_NAME`_FATAL      ( 0xFF )
-
-void `$INSTANCE_NAME`_CliIdle( const `$INSTANCE_NAME`_CLI_COMMAND *tbl, uint8 refresh );
-void `$INSTANCE_NAME`_SystemMsg(const char *str, uint8 level);
-int `$INSTANCE_NAME`_CliGetArguments( char *buffer, int *argc, char **argv );
-
-void `$INSTANCE_NAME`_CliHelp( int argc, char **argv );
-void `$INSTANCE_NAME`_CliClearScreen( int argc, char **argv );
-
-/*
- * When the CLI TASK option is selected, add in the prototype for the
- * CLI task.
- */
-void `$INSTANCE_NAME`_vCliTask( void *pvParameters );
-
-
-#endif
-
 #endif
 /* [] END OF FILE */

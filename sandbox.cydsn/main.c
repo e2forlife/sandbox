@@ -45,6 +45,7 @@ int main()
     /* Place your initialization/startup code here (e.g. MyInst_Start()) */
 	COMIO_Start();
 	PWM_Start();
+	CLI_Start();
 	
 	//xTaskCreate( vMainTask, "MAIN Task", 200, NULL, 1, NULL );
 	FreeRTOS_Start();
