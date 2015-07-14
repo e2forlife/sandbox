@@ -42,8 +42,7 @@ void `$INSTANCE_NAME`_Start( void );
 void `$INSTANCE_NAME`_Init( void );
 void `$INSTANCE_NAME`_Enable( void );
 
-void `$INSTANCE_NAME`_ReaderTask( void *pvParameters );
-void `$INSTANCE_NAME`_WriterTask( void *pvParameters );
+void `$INSTANCE_NAME`_Task( void *pvParameters );
 
 
 

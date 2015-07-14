@@ -56,6 +56,7 @@ void `$INSTANCE_NAME`_Start( void )
 	 */
 	`$INSTANCE_NAME`_RegisterCommand(`$INSTANCE_NAME`_CliHelp,"help","Display command table descriptions");
 	`$INSTANCE_NAME`_RegisterCommand(`$INSTANCE_NAME`_CliClearScreen,"cls","Clear the screen");
+	`$INSTANCE_NAME`_RegisterCommand(`$INSTANCE_NAME`_TaskList,"taskmgr","Display task information");
 	
 	xTaskCreate( `$INSTANCE_NAME`_vCliTask, "Cli Task", 600, (void*)&`$INSTANCE_NAME`_CommandTable[0], `$CLI_PRIORITY`, NULL);
 }
@@ -118,6 +119,56 @@ cystatus `$INSTANCE_NAME`_CliClearScreen( int argc, char **argv )
 	argv = argv;
 	
 	`$COM_INSTANCE`_PrintString("\x1b[1;1H\x1b[2J");
+	return CYRET_SUCCESS;
+}
+/* ------------------------------------------------------------------------ */
+cystatus `$INSTANCE_NAME`_TaskList(int argc, char **argv )
+{
+	int arg;
+	uint8 usage;
+	xTaskStatusType *pxTaskStatus;
+	volatile uint32 ArraySize, idx;
+	uint32 totalRunTime, statusPercent;
+	char out[85];
+
+	usage = 0;
+	
+	/* Argument Processing */
+	for(arg=1;arg<argc;++arg) {
+		if (strcmp(argv[arg],"-h") == 0) {
+			usage = 0xFF;
+		}
+	}
+	
+	if (usage != 0) {
+		`$COM_INSTANCE`_PrintString("\r\n\n");
+		`$COM_INSTANCE`_PrintStringColor("[ USAGE ]\r\n\n",15,0);
+		`$COM_INSTANCE`_PrintStringColor(argv[0],10,0);
+		`$COM_INSTANCE`_PrintStringColor(" -[h]",2,0);
+		`$COM_INSTANCE`_PrintString("\r\n\n\n   -h : Display command help");
+		`$COM_INSTANCE`_PrintString("\r\n\n");
+	}
+	else {
+		ArraySize = uxTaskGetNumberOfTasks();
+		pxTaskStatus = pvPortMalloc( ArraySize * sizeof(xTaskStatusType) );
+		if ( pxTaskStatus != NULL ) {
+			ArraySize = uxTaskGetSystemState( pxTaskStatus, ArraySize, &totalRunTime );
+			`$COM_INSTANCE`_PrintString("\r\n\n\n");
+			sprintf(out," %3s   %3s   %25s  %3s ","PID","PRI","NAME","MEM");
+			`$COM_INSTANCE`_PrintStringColor(out,15,4);	
+			for (idx=0;idx<(ArraySize-1);++idx) {
+				sprintf(out,"\r\n[%3d] - %d - [%25s][%3d]",
+					pxTaskStatus[idx].xTaskNumber,
+					pxTaskStatus[idx].uxCurrentPriority,
+					pxTaskStatus[idx].pcTaskName, 
+					pxTaskStatus[idx].usStackHighWaterMark);
+				`$COM_INSTANCE`_PrintStringColor(out,5,0);
+			}
+			`$COM_INSTANCE`_PrintString("\r\n\n");
+			vPortFree(pxTaskStatus);
+		}
+	}
+	
 	return CYRET_SUCCESS;
 }
 /* ------------------------------------------------------------------------ */
@@ -202,7 +253,7 @@ int `$INSTANCE_NAME`_CliGetArguments( char *buffer, int *argc, char **argv )
 			 * result to finished to let the processor know that the arguments
 			 * of the current command are now fully split.
 			 */
-			buffer[idx] = 0;
+			buffer[idx++] = 0;
 			result = CYRET_FINISHED;
 		}
 		/*
@@ -212,7 +263,7 @@ int `$INSTANCE_NAME`_CliGetArguments( char *buffer, int *argc, char **argv )
 		else {
 			argv[*argc] = &buffer[idx];
 			*argc = *argc + 1;
-			while ( (!isspace((int)buffer[idx])) && (buffer[idx] != 0) ) {
+			while ( (!isspace((int)buffer[idx])) && (buffer[idx] != 0) && (buffer[idx] != ';') ) {
 				++idx;
 			}
 			/*

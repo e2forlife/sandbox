@@ -65,6 +65,7 @@ int `$INSTANCE_NAME`_CliGetArguments( char *buffer, int *argc, char **argv );
 
 cystatus `$INSTANCE_NAME`_CliHelp( int argc, char **argv );
 cystatus `$INSTANCE_NAME`_CliClearScreen( int argc, char **argv );
+cystatus `$INSTANCE_NAME`_TaskList(int argc, char **argv );
 
 /*
  * When the CLI TASK option is selected, add in the prototype for the
