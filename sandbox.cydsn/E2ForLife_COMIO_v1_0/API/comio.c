@@ -193,7 +193,7 @@ cystatus `$INSTANCE_NAME`_PutChar( char ch )
 	
 	portBASE_TYPE xStatus;
 	
-	xStatus = xQueueSend( `$INSTANCE_NAME`_TxQ, &ch, 0);
+	xStatus = xQueueSend( `$INSTANCE_NAME`_TxQ, &ch, portMAX_DELAY);
 	
 	return (xStatus == pdPASS)?CYRET_SUCCESS:CYRET_MEMORY;
 }

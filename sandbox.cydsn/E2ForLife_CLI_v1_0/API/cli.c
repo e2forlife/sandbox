@@ -41,7 +41,7 @@
 	
 /* ------------------------------------------------------------------------ */
 	
-`$INSTANCE_NAME`_CLI_COMMAND `$INSTANCE_NAME`_CommandTable[ `$CLI_COMMANDS` ];
+`$INSTANCE_NAME`_CLI_COMMAND `$INSTANCE_NAME`_CommandTable[ `$CLI_COMMANDS`+1 ];
 
 /* ------------------------------------------------------------------------ */
 
@@ -154,10 +154,10 @@ cystatus `$INSTANCE_NAME`_TaskList(int argc, char **argv )
 		if ( pxTaskStatus != NULL ) {
 			ArraySize = uxTaskGetSystemState( pxTaskStatus, ArraySize, &totalRunTime );
 			`$COM_INSTANCE`_PrintString("\r\n\n\n");
-			sprintf(out," %3s   %3s   %25s  %3s ","PID","PRI","NAME","MEM");
+			sprintf(out," %3s   %3s   %-25s  %3s ","PID","PRI","NAME","MEM");
 			`$COM_INSTANCE`_PrintStringColor(out,15,4);	
 			for (idx=0;idx<(ArraySize-1);++idx) {
-				sprintf(out,"\r\n[%3d] - %d - [%25s][%3d]",
+				sprintf(out,"\r\n[%3d] - %d - [%-25s][%3d]",
 					pxTaskStatus[idx].xTaskNumber,
 					pxTaskStatus[idx].uxCurrentPriority,
 					pxTaskStatus[idx].pcTaskName, 
@@ -308,7 +308,7 @@ cystatus `$INSTANCE_NAME`_CliProcessCommand(const `$INSTANCE_NAME`_CLI_COMMAND *
 	if (argc > 0) {
 		/* look for the processed command */
 		idx = 0;
-		while ( strlen(tbl[idx].name ) > 0) {
+		while ( ( strlen(tbl[idx].name ) > 0) && (idx < `$CLI_COMMANDS`) ) {
 			if ( strcmp(tbl[idx].name, argv[0]) == 0 ) {
 				fn = tbl[idx].fn;
 				if (fn != NULL) {

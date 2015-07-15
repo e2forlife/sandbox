@@ -34,6 +34,7 @@
 
 void vMainTask( void *pvParameters);
 
+cystatus SetBrightness( int argc, char **argv );
 
 int main()
 {
@@ -44,31 +45,61 @@ int main()
 
     /* Place your initialization/startup code here (e.g. MyInst_Start()) */
 	COMIO_Start();
-	PWM_Start();
 	CLI_Start();
 	
-	//xTaskCreate( vMainTask, "MAIN Task", 200, NULL, 1, NULL );
+	xTaskCreate( vMainTask, "MAIN Task", 200, NULL, 3, NULL );
 	FreeRTOS_Start();
 	
     for(;;);
 }
-
 
 void vMainTask( void *pvParameters)
 {
 	int blink;
 	char ch;
 	
+	Brightness_Start();
+	
+	CLI_RegisterCommand(SetBrightness,"led","Set LED Brightness");
+	
 	blink = 70;	
 	for(;;) {
-		//ch = COMIO_GetChar();
-		//COMIO_PutChar(ch);
 		
-		//PWM_WriteCompare( blink );
-		//blink = (blink == 250)?70:(blink+10);
+//		Brightness_WritePulse0( blink );
+		blink = (blink == 250)?70:(blink+10);
 		
-		vTaskDelay( 100/portTICK_PERIOD_MS);
+		vTaskDelay( 1000/portTICK_PERIOD_MS);
 	}
+}
+
+cystatus SetBrightness( int argc, char **argv )
+{
+	int arg;
+	uint8 usage;
+	int value;
+	char out[25];
+	
+	usage = 0;
+	for (arg=1;arg<argc;++arg) {
+		if (strcmp(argv[arg],"-h") == 0) {
+			usage = 0xFF;
+		}
+		else if ( isdigit((int)argv[arg][0]) ) {
+			sscanf(argv[arg],"%d",&value);
+			Brightness_WritePulse0( value );
+		}
+	}
+	
+	if (usage != 0) {
+		sprintf(out,"\r\n\n%s",argv[0]);
+		COMIO_PrintString(out);
+		COMIO_PrintString(" {value}\r\n\n");
+	}
+	
+	value = Brightness_ReadPulse0();
+	COMIO_PrintString("Brightness : ");
+	sprintf(out,"%d\r\n\n",value);
+	COMIO_PrintString(out);
 }
 
 /* [] END OF FILE */
