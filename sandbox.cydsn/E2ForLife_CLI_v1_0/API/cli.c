@@ -56,7 +56,11 @@ void `$INSTANCE_NAME`_Start( void )
 	 */
 	`$INSTANCE_NAME`_RegisterCommand(`$INSTANCE_NAME`_CliHelp,"help","Display command table descriptions");
 	`$INSTANCE_NAME`_RegisterCommand(`$INSTANCE_NAME`_CliClearScreen,"cls","Clear the screen");
+	
+	#if (configUSE_TRACE_FACILITY != 0)
 	`$INSTANCE_NAME`_RegisterCommand(`$INSTANCE_NAME`_TaskList,"taskmgr","Display task information");
+	`$INSTANCE_NAME`_RegisterCommand(`$INSTANCE_NAME`_KillTask,"kill","Force delete a task.");	
+	#endif
 	
 	xTaskCreate( `$INSTANCE_NAME`_vCliTask, "Cli Task", 600, (void*)&`$INSTANCE_NAME`_CommandTable[0], `$CLI_PRIORITY`, NULL);
 }
@@ -122,13 +126,14 @@ cystatus `$INSTANCE_NAME`_CliClearScreen( int argc, char **argv )
 	return CYRET_SUCCESS;
 }
 /* ------------------------------------------------------------------------ */
+#if (configUSE_TRACE_FACILITY != 0)
 cystatus `$INSTANCE_NAME`_TaskList(int argc, char **argv )
 {
 	int arg;
 	uint8 usage;
 	xTaskStatusType *pxTaskStatus;
 	volatile uint32 ArraySize, idx;
-	uint32 totalRunTime, statusPercent;
+//	uint32 totalRunTime, statusPercent;
 	char out[85];
 
 	usage = 0;
@@ -158,10 +163,10 @@ cystatus `$INSTANCE_NAME`_TaskList(int argc, char **argv )
 			`$COM_INSTANCE`_PrintStringColor(out,15,4);	
 			for (idx=0;idx<(ArraySize-1);++idx) {
 				sprintf(out,"\r\n[%3d] - %d - [%-25s][%3d]",
-					pxTaskStatus[idx].xTaskNumber,
-					pxTaskStatus[idx].uxCurrentPriority,
+					(int)pxTaskStatus[idx].xTaskNumber,
+					(int)pxTaskStatus[idx].uxCurrentPriority,
 					pxTaskStatus[idx].pcTaskName, 
-					pxTaskStatus[idx].usStackHighWaterMark);
+					(int)pxTaskStatus[idx].usStackHighWaterMark);
 				`$COM_INSTANCE`_PrintStringColor(out,5,0);
 			}
 			`$COM_INSTANCE`_PrintString("\r\n\n");
@@ -171,6 +176,60 @@ cystatus `$INSTANCE_NAME`_TaskList(int argc, char **argv )
 	
 	return CYRET_SUCCESS;
 }
+/* ------------------------------------------------------------------------ */
+cystatus `$ISTANCE_NAME`_KillTask(int argc, char **argv )
+{
+	int arg;
+	uint8 usage;
+	xTaskStatusType *pxTaskStatus;
+	volatile uint32 ArraySize, idx;
+//	uint32 totalRunTime, statusPercent;
+	char out[85];
+
+	usage = 0;
+	
+	/* Argument Processing */
+	for(arg=1;arg<argc;++arg) {
+		if (strcmp(argv[arg],"-h") == 0) {
+			usage = 0xFF;
+		}
+		else if (strncmp(argv[arg],"-p",2) == 0) {
+			
+		}
+	}
+	
+	if (usage != 0) {
+		`$COM_INSTANCE`_PrintString("\r\n\n");
+		`$COM_INSTANCE`_PrintStringColor("[ USAGE ]\r\n\n",15,0);
+		`$COM_INSTANCE`_PrintStringColor(argv[0],10,0);
+		`$COM_INSTANCE`_PrintStringColor(" -[h/p]",2,0);
+		`$COM_INSTANCE`_PrintString("\r\n\n\n   -h        : Display command help");
+		`$COM_INSTANCE`_PrintString("\r\n   -p{value} : Identify PID to force kill.");
+		`$COM_INSTANCE`_PrintString("\r\n\n");
+	}
+	else {
+		ArraySize = uxTaskGetNumberOfTasks();
+		pxTaskStatus = pvPortMalloc( ArraySize * sizeof(xTaskStatusType) );
+		if ( pxTaskStatus != NULL ) {
+			ArraySize = uxTaskGetSystemState( pxTaskStatus, ArraySize, &totalRunTime );
+			`$COM_INSTANCE`_PrintString("\r\n\n\n");
+			for (idx=0;idx<(ArraySize-1);++idx) {
+				if (pxTaskStatus[idx].xTaskNumber == pid ) {
+					/* Found the task to delete */
+					`$COM_INSTANCE`_PrintString("Killing Task ");
+					sprintf(out,"%s.",pxTaskStatus.pcTaskName);
+					`$COM_INSTANCE`_PrintString(out);
+				}
+			}
+			`$COM_INSTANCE`_PrintString("\r\n\n");
+			vPortFree(pxTaskStatus);
+		}
+	}
+	
+	return CYRET_SUCCESS;
+	
+}
+#endif
 /* ------------------------------------------------------------------------ */
 void `$INSTANCE_NAME`_CliShowPrompt( char *lineBuffer )
 {

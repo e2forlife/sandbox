@@ -97,7 +97,7 @@ cystatus SetBrightness( int argc, char **argv )
 	}
 	
 	value = Brightness_ReadPulse0();
-	COMIO_PrintString("Brightness : ");
+	COMIO_PrintString("\r\n\nBrightness : ");
 	sprintf(out,"%d\r\n\n",value);
 	COMIO_PrintString(out);
 }

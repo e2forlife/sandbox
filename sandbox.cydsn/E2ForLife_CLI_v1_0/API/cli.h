@@ -30,7 +30,7 @@
 	#define `$INSTANCE_NAME`_H
 
 #include <cytypes.h>
-	
+
 #define `$INSTANCE_NAME`_YES            ( 1 )
 #define `$INSTANCE_NAME`_NO             ( 0 )
 
@@ -65,8 +65,15 @@ int `$INSTANCE_NAME`_CliGetArguments( char *buffer, int *argc, char **argv );
 
 cystatus `$INSTANCE_NAME`_CliHelp( int argc, char **argv );
 cystatus `$INSTANCE_NAME`_CliClearScreen( int argc, char **argv );
-cystatus `$INSTANCE_NAME`_TaskList(int argc, char **argv );
 
+/**
+ * When the trace facilities are being used in FreeRTOS, enable the task
+ * monitoring, removall, and priority switching.
+ */
+#if (configUSE_TRACE_FACILITY != 0)
+cystatus `$INSTANCE_NAME`_TaskList(int argc, char **argv );
+cystatus `$ISTANCE_NAME`_KillTask(int argc, char **argv )
+#endif
 /*
  * When the CLI TASK option is selected, add in the prototype for the
  * CLI task.
