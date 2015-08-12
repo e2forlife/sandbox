@@ -69,29 +69,24 @@ void `$INSTANCE_NAME`_SystemMsg(const char *str, uint8 level)
 {
 	switch(level) {
 		case `$INSTANCE_NAME`_NOTE:
-			`$COM_INSTANCE`_PrintStringColor("\r\n[NOTE]",15,0);
-			`$COM_INSTANCE`_PrintString(": ");
-			`$COM_INSTANCE`_PrintStringColor(str,2,0);
+			`$COM_INSTANCE`_PrintString("\r\n{c4}[{c10}NOTE{c4}]{c7}:");
+			`$COM_INSTANCE`_PrintString(str);
 			break;
 		case `$INSTANCE_NAME`_WARN:
-			`$COM_INSTANCE`_PrintStringColor("\r\n[WARNING]",15,0);
-			`$COM_INSTANCE`_PrintString(": ");
-			`$COM_INSTANCE`_PrintStringColor(str,3,0);
+			`$COM_INSTANCE`_PrintString("\r\n{c4}[{c11}WARNING{c4}]{c7}: ");
+			`$COM_INSTANCE`_PrintString(str);
 			break;
 		case `$INSTANCE_NAME`_ERROR:
-			`$COM_INSTANCE`_PrintStringColor("\r\n[ERROR]",15,0);
-			`$COM_INSTANCE`_PrintString(": ");
-			`$COM_INSTANCE`_PrintStringColor(str,1,0);
+			`$COM_INSTANCE`_PrintString("\r\n{c4}[{c9}ERROR{c4}]{c7}: ");
+			`$COM_INSTANCE`_PrintString(str);
 			break;
 		case `$INSTANCE_NAME`_FATAL:
-			`$COM_INSTANCE`_PrintStringColor("\r\n[FATAL]",15,0);
-			`$COM_INSTANCE`_PrintString(": ");
-			`$COM_INSTANCE`_PrintStringColor(str,9,0);
+			`$COM_INSTANCE`_PrintString("\r\n{c4}[{c9}FATAL{c4}]{c7}: {c9}");
+			`$COM_INSTANCE`_PrintString(str);
 			break;
 		default:
-			`$COM_INSTANCE`_PrintStringColor("\r\n[????]",15,0);
-			`$COM_INSTANCE`_PrintString(": ");
-			`$COM_INSTANCE`_PrintStringColor(str,5,0);
+			`$COM_INSTANCE`_PrintString("\r\n{c4}[{c15}????{c4}]{c7}: ");
+			`$COM_INSTANCE`_PrintString(str);
 			break;
 	}
 }
@@ -101,15 +96,16 @@ cystatus `$INSTANCE_NAME`_CliHelp( int argc, char **argv )
 	int idx;
 	char bfr[51];
 	
-	`$COM_INSTANCE`_PrintString("\x1b[1;1H\x1b[2J");
+	`$COM_INSTANCE`_PrintString("{row1;col1;mv;cls}");
 	
 	idx = 0;
 	while ( strlen(`$INSTANCE_NAME`_CommandTable[idx].name) != 0) {
 		if ( strlen(`$INSTANCE_NAME`_CommandTable[idx].desc) > 0 ) {
-			sprintf(bfr,"\r\n[%10s]",`$INSTANCE_NAME`_CommandTable[idx].name);
-			`$COM_INSTANCE`_PrintStringColor(bfr,15,0);
-			`$COM_INSTANCE`_PrintString(" : ");
-			`$COM_INSTANCE`_PrintStringColor(`$INSTANCE_NAME`_CommandTable[idx].desc, ((idx&0x01)?10:2),0);
+			sprintf(bfr,"\r\n{c4}[{c15}%10s{c4}]{c7} : ",`$INSTANCE_NAME`_CommandTable[idx].name);
+			`$COM_INSTANCE`_PrintString(bfr);
+			sprintf(bfr,"{c%d}",((idx&0x01)?10:2));
+			`$COM_INSTANCE`_PrintString(bfr);
+			`$COM_INSTANCE`_PrintString(`$INSTANCE_NAME`_CommandTable[idx].desc);
 		}
 		++idx;
 	}
@@ -122,130 +118,15 @@ cystatus `$INSTANCE_NAME`_CliClearScreen( int argc, char **argv )
 	argc = argc;
 	argv = argv;
 	
-	`$COM_INSTANCE`_PrintString("\x1b[1;1H\x1b[2J");
+	`$COM_INSTANCE`_PrintString("{cls}");
 	return CYRET_SUCCESS;
 }
-/* ------------------------------------------------------------------------ */
-#if (configUSE_TRACE_FACILITY != 0)
-cystatus `$INSTANCE_NAME`_TaskList(int argc, char **argv )
-{
-	int arg;
-	uint8 usage;
-	xTaskStatusType *pxTaskStatus;
-	volatile uint32 ArraySize, idx;
-//	uint32 totalRunTime, statusPercent;
-	char out[85];
-
-	usage = 0;
-	
-	/* Argument Processing */
-	for(arg=1;arg<argc;++arg) {
-		if (strcmp(argv[arg],"-h") == 0) {
-			usage = 0xFF;
-		}
-	}
-	
-	if (usage != 0) {
-		`$COM_INSTANCE`_PrintString("\r\n\n");
-		`$COM_INSTANCE`_PrintStringColor("[ USAGE ]\r\n\n",15,0);
-		`$COM_INSTANCE`_PrintStringColor(argv[0],10,0);
-		`$COM_INSTANCE`_PrintStringColor(" -[h]",2,0);
-		`$COM_INSTANCE`_PrintString("\r\n\n\n   -h : Display command help");
-		`$COM_INSTANCE`_PrintString("\r\n\n");
-	}
-	else {
-		ArraySize = uxTaskGetNumberOfTasks();
-		pxTaskStatus = pvPortMalloc( ArraySize * sizeof(xTaskStatusType) );
-		if ( pxTaskStatus != NULL ) {
-			ArraySize = uxTaskGetSystemState( pxTaskStatus, ArraySize, &totalRunTime );
-			`$COM_INSTANCE`_PrintString("\r\n\n\n");
-			sprintf(out," %3s   %3s   %-25s  %3s ","PID","PRI","NAME","MEM");
-			`$COM_INSTANCE`_PrintStringColor(out,15,4);	
-			for (idx=0;idx<(ArraySize-1);++idx) {
-				sprintf(out,"\r\n[%3d] - %d - [%-25s][%3d]",
-					(int)pxTaskStatus[idx].xTaskNumber,
-					(int)pxTaskStatus[idx].uxCurrentPriority,
-					pxTaskStatus[idx].pcTaskName, 
-					(int)pxTaskStatus[idx].usStackHighWaterMark);
-				`$COM_INSTANCE`_PrintStringColor(out,5,0);
-			}
-			`$COM_INSTANCE`_PrintString("\r\n\n");
-			vPortFree(pxTaskStatus);
-		}
-	}
-	
-	return CYRET_SUCCESS;
-}
-/* ------------------------------------------------------------------------ */
-cystatus `$ISTANCE_NAME`_KillTask(int argc, char **argv )
-{
-	int arg;
-	uint8 usage;
-	xTaskStatusType *pxTaskStatus;
-	volatile uint32 ArraySize, idx;
-//	uint32 totalRunTime, statusPercent;
-	char out[85];
-
-	usage = 0;
-	
-	/* Argument Processing */
-	for(arg=1;arg<argc;++arg) {
-		if (strcmp(argv[arg],"-h") == 0) {
-			usage = 0xFF;
-		}
-		else if (strncmp(argv[arg],"-p",2) == 0) {
-			
-		}
-	}
-	
-	if (usage != 0) {
-		`$COM_INSTANCE`_PrintString("\r\n\n");
-		`$COM_INSTANCE`_PrintStringColor("[ USAGE ]\r\n\n",15,0);
-		`$COM_INSTANCE`_PrintStringColor(argv[0],10,0);
-		`$COM_INSTANCE`_PrintStringColor(" -[h/p]",2,0);
-		`$COM_INSTANCE`_PrintString("\r\n\n\n   -h        : Display command help");
-		`$COM_INSTANCE`_PrintString("\r\n   -p{value} : Identify PID to force kill.");
-		`$COM_INSTANCE`_PrintString("\r\n\n");
-	}
-	else {
-		ArraySize = uxTaskGetNumberOfTasks();
-		pxTaskStatus = pvPortMalloc( ArraySize * sizeof(xTaskStatusType) );
-		if ( pxTaskStatus != NULL ) {
-			ArraySize = uxTaskGetSystemState( pxTaskStatus, ArraySize, &totalRunTime );
-			`$COM_INSTANCE`_PrintString("\r\n\n\n");
-			for (idx=0;idx<(ArraySize-1);++idx) {
-				if (pxTaskStatus[idx].xTaskNumber == pid ) {
-					/* Found the task to delete */
-					`$COM_INSTANCE`_PrintString("Killing Task ");
-					sprintf(out,"%s.",pxTaskStatus.pcTaskName);
-					`$COM_INSTANCE`_PrintString(out);
-				}
-			}
-			`$COM_INSTANCE`_PrintString("\r\n\n");
-			vPortFree(pxTaskStatus);
-		}
-	}
-	
-	return CYRET_SUCCESS;
-	
-}
-#endif
 /* ------------------------------------------------------------------------ */
 void `$INSTANCE_NAME`_CliShowPrompt( char *lineBuffer )
 {
-	int idx;
-	char outBuffer[11];
-	
 	`$COM_INSTANCE`_PrintString("\r\n");
-	`$COM_INSTANCE`_PrintStringColor("`$UserMessageString`",`$MSG_FG_COLOR`,`$MSG_BG_COLOR`);
-	`$COM_INSTANCE`_PrintStringColor("`$UserPromptString`",`$PROMPT_FG_COLOR`,`$PROMPT_BG_COLOR`);
-	`$COM_INSTANCE`_PrintString(" : ");
-	`$COM_INSTANCE`_SetColor(`$INPUT_FG_COLOR`,`$INPUT_BG_COLOR`);
-	for(idx=0;idx<`$MAX_CLI_INPUT_BUFFER`;++idx) {
-		`$COM_INSTANCE`_PutChar(' ');
-	}
-	sprintf(outBuffer,"\x1b[%dD",`$MAX_CLI_INPUT_BUFFER`);
-	`$COM_INSTANCE`_PrintString( outBuffer );
+	`$COM_INSTANCE`_PrintString("`$UserMessageString`");
+	`$COM_INSTANCE`_PrintString("`$UserPromptString`");
 	`$COM_INSTANCE`_PrintString( lineBuffer);
 }
 /* ------------------------------------------------------------------------ */

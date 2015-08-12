@@ -44,6 +44,7 @@
 
 xQueueHandle `$INSTANCE_NAME`_RxQ;
 xQueueHandle `$INSTANCE_NAME`_TxQ;
+xSemaphoreHandle `$INSTANCE_NAME`_Mutex;
 
 uint8 `$INSTANCE_NAME`_initVar;
 
@@ -70,6 +71,9 @@ void `$INSTANCE_NAME`_Init( void )
 			`$COM_INSTANCE`_Start(0u, `$COM_INSTANCE`_5V_OPERATION);
 		#endif
 	}
+	
+	/* Initialize and create the semaphore */
+	`$INSTANCE_NAME`_Mutex = xSemaphoreCreateMutex();
 	
 	/* Initialize USB Buffers */
 	`$INSTANCE_NAME`_TxQ = xQueueCreate( `$TX_SIZE`, 1 );
@@ -198,17 +202,226 @@ cystatus `$INSTANCE_NAME`_PutChar( char ch )
 	return (xStatus == pdPASS)?CYRET_SUCCESS:CYRET_MEMORY;
 }
 /* ------------------------------------------------------------------------ */
+int `$INSTANCE_NAME`_ProcessString( const char *buffer, char *argv )
+{
+	int idx;
+	int ptr;
+	cystatus result;
+	
+	result = CYRET_STARTED;
+	idx = 0;
+	ptr = 0;
+	while ( (buffer[idx] != 0) && (result == CYRET_STARTED) ) {
+		/*
+		 * drop leading whitespace, and set all spaces to NULL to
+		 * prevent later confusion.
+		 */
+		while ( (buffer[idx] != 0) && isspace((int)buffer[idx]) ) {
+			++idx;
+		}
+		/*
+		 * now, we know that the index is pointing to a non-space character,
+		 * so process the character based upon it's state.
+		 */
+		if (buffer[idx] == ';') {
+			/* 
+			 * The end of a command can be the end of the buffer, or, a
+			 * semicolon can be used for the creation of compound
+			 * statements.
+			 * A compound statement seperator was detected, so, clear it to
+			 * form a terminator for the last argument, and then, set the
+			 * result to finished to let the processor know that the arguments
+			 * of the current command are now fully split.
+			 */
+			argv[ptr] = 0;
+			idx++;
+			result = CYRET_FINISHED;
+		}
+		else if (buffer[idx] == '}') {
+			/* End of sequence was detected, just return */
+			idx++;
+			result = CYRET_FINISHED;
+		}
+		/*
+		 * Otherwise, store the character location, and move the index pointer
+		 * to the next break in the input, or the end of the buffer
+		 */
+		else {
+			argv[ptr++] = buffer[idx++];
+			while ( (!isspace((int)buffer[idx])) && (buffer[idx] != 0) && (buffer[idx] != ';') && (buffer[idx] != '}') ) {
+				argv[ptr++] = buffer[idx++];
+			}
+			argv[ptr] = 0;
+		}
+	}
+	
+	return idx;
+}
+/* ------------------------------------------------------------------------ */
+int `$INSTANCE_NAME`_ProcessEscapeSequence( const char *str)
+{
+	int idx;
+	char argv[25];
+	int done;
+	uint32 row, col;
+	uint32 value;
+	char out[21];
+	int oi;
+	
+	
+	/* trap an error that shouldn't happen, but might make print code easier */
+	if ( str[0] != '{') return 0;
+	
+	row = 1;
+	col = 1;
+	done = 0;
+	idx = 1;
+	
+	while (done == 0) {
+		idx += `$INSTANCE_NAME`_ProcessString( &str[idx], argv );
+		if (str[idx-1] == '}') {
+			done = 1;
+		}
+		
+		if (strncmp(argv, "left",4) == 0) {
+			if (argv[4] != 0) {
+				sscanf(&argv[4],"%lu",&value);
+			}
+			else {
+				value = 1;
+			}
+			sprintf(out, "\x1b[%luD",value);
+			oi = 0;
+			while (out[oi] != 0) `$INSTANCE_NAME`_PutChar(out[oi++]);
+		}
+		else if (strncmp(argv, "right",5) == 0) {
+			if (argv[5] != 0) {
+				sscanf(&argv[5],"%lu",&value);
+			}
+			else {
+				value = 1;
+			}
+			sprintf(out, "\x1b[%luC",value);
+			oi = 0;
+			while (out[oi] != 0) `$INSTANCE_NAME`_PutChar(out[oi++]);
+		}
+		else if (strcmp(argv,"cls") == 0) {
+			sprintf(out, "\x1b[2J");
+			oi = 0;
+			while (out[oi] != 0) `$INSTANCE_NAME`_PutChar(out[oi++]);
+		}
+		else if (strncmp(argv,"cl",2) == 0) {
+			if (argv[2] != 0) {
+				sscanf(&argv[2],"%lu",&value);
+			}
+			else {
+				value = 1;
+			}
+			sprintf(out, "\x1b[%luK", value);
+			oi = 0;
+			while (out[oi] != 0) `$INSTANCE_NAME`_PutChar(out[oi++]);
+		}
+		else if (strncmp(argv,"row",3) == 0) {
+			if (argv[3] != 0) {
+				sscanf(&argv[3],"%lu",&row);
+			}
+			else {
+				row = 1;
+			}
+		}
+		else if (strncmp(argv,"col",3) == 0) {
+			if (argv[3] != 0) {
+				sscanf(&argv[3],"%lu",&col);
+			}
+			else {
+				col = 1;
+			}
+		}
+		else if (strcmp(argv,"mv") == 0) {
+			sprintf(out,"\x1b[%lu;%luH",row,col);
+			oi = 0;
+			while (out[oi] != 0) `$INSTANCE_NAME`_PutChar(out[oi++]);
+		}
+		else if (strcmp(argv, "hide") == 0) {
+			sprintf(out,"\x1b[?25l");
+			oi = 0;
+			while (out[oi] != 0) `$INSTANCE_NAME`_PutChar(out[oi++]);
+		}
+		else if (strcmp(argv, "show") == 0) {
+			sprintf(out,"\x1b[?25h");
+			oi = 0;
+			while (out[oi] != 0) `$INSTANCE_NAME`_PutChar(out[oi++]);
+		}
+		else if (argv[0] == 'c') {
+			/* Set Foreground Color */
+			if (argv[1] != 0) {
+				sscanf(&argv[1],"%lu",&value);
+			}
+			else {
+				value = 7;
+			}
+			value = (value > 7) ? (90 + (value&0x07)):(value + 30);
+			sprintf( out, "\x1b[%lum",value);
+			oi = 0;
+			while (out[oi] != 0) `$INSTANCE_NAME`_PutChar(out[oi++]);
+		}
+		else if (argv[0] == 'b') {
+			/* Set background color */
+			if (argv[1] != 0) {
+				sscanf(&argv[1],"%lu",&value);
+			}
+			else {
+				value = 0;
+			}
+			value = (value > 7) ? (100 + (value&0x07)):(value + 40);
+			sprintf( out, "\x1b[%lum",value);
+			oi = 0;
+			while (out[oi] != 0) `$INSTANCE_NAME`_PutChar(out[oi++]);
+		}
+		else if (argv[0] == '{') {
+			`$INSTANCE_NAME`_PutChar('{');
+		}
+	}
+	
+	return idx;
+}
+/* ------------------------------------------------------------------------ */
 cystatus `$INSTANCE_NAME`_PrintString( const char *str )
 {
 	int idx;
 	cystatus result;
 	
-	result = CYRET_SUCCESS;
-	idx = 0;
-	while ( (str[idx] != 0) && (result == CYRET_SUCCESS) ) {
-		/* insert character in to the send fifo */
-		result = `$INSTANCE_NAME`_PutChar(str[idx++]);		
+	/*
+	 * Inline escape sequences are contained within braces. To output an
+	 * open brace, use a double brace {{}.
+	 * {c#}        : Set Foreground Color
+	 * {b#}        : Set background Color
+	 * {left#}     : Cursor Left
+	 * {right#}    : Cursor Right
+	 * {cls}       : Clear Screen
+	 * {cl#}       : Clear Line
+	 * {row#}      : Set Row
+	 * {col#}      : Set Column
+	 * {mv}        : move cursor to row column
+	 * {hide}      : hide cursor
+	 * {show}      : show cursor
+	 */
+	xSemaphoreTake(`$INSTANCE_NAME`_Mutex, portMAX_DELAY);
+	{
+		result = CYRET_SUCCESS;
+		idx = 0;
+		while ( (str[idx] != 0) && (result == CYRET_SUCCESS) ) {
+			if ( str[idx] == '{') {
+				idx += `$INSTANCE_NAME`_ProcessEscapeSequence( &str[idx] );
+			}
+			else {
+				/* insert character in to the send fifo */
+				result = `$INSTANCE_NAME`_PutChar(str[idx++]);
+			}
+		}
 	}
+	xSemaphoreGive( `$INSTANCE_NAME`_Mutex );
+	
 	return result;
 }
 /* ------------------------------------------------------------------------ */
@@ -238,28 +451,28 @@ cystatus `$INSTANCE_NAME`_Position(uint8 row, uint8 col)
 	return `$INSTANCE_NAME`_PrintString(buffer);
 }
 /* ------------------------------------------------------------------------- */
-cystatus `$INSTANCE_NAME`_PrintStringColor(const char *str, uint8 fg, uint8 bg)
-{
-	cystatus result;
-	int idx;
-	
-	result = `$INSTANCE_NAME`_SetColor(fg,bg);
-	idx = 0;
-	while ( (str[idx] != 0) && (result == CYRET_SUCCESS) ) {
-		if ( ( (str[idx] == '[') || (str[idx] == ']') || (str[idx] == '(') || (str[idx] == ')') ) && (bg!=4) ) {
-			result = `$INSTANCE_NAME`_SetColor(4,bg);
-			`$INSTANCE_NAME`_PutChar( str[idx] );
-			result = `$INSTANCE_NAME`_SetColor(fg,bg);
-		}
-		else {
-			`$INSTANCE_NAME`_PutChar( str[idx] );
-		}
-		++idx;
-	}
-	`$INSTANCE_NAME`_SetColor(7,0);
-	
-	return result;
-}
+//cystatus `$INSTANCE_NAME`_PrintStringColor(const char *str, uint8 fg, uint8 bg)
+//{
+//	cystatus result;
+//	int idx;
+//	
+//	result = `$INSTANCE_NAME`_SetColor(fg,bg);
+//	idx = 0;
+//	while ( (str[idx] != 0) && (result == CYRET_SUCCESS) ) {
+//		if ( ( (str[idx] == '[') || (str[idx] == ']') || (str[idx] == '(') || (str[idx] == ')') ) && (bg!=4) ) {
+//			result = `$INSTANCE_NAME`_SetColor(4,bg);
+//			`$INSTANCE_NAME`_PutChar( str[idx] );
+//			result = `$INSTANCE_NAME`_SetColor(fg,bg);
+//		}
+//		else {
+//			`$INSTANCE_NAME`_PutChar( str[idx] );
+//		}
+//		++idx;
+//	}
+//	`$INSTANCE_NAME`_SetColor(7,0);
+//	
+//	return result;
+//}
 /* ------------------------------------------------------------------------- */
 cystatus `$INSTANCE_NAME`_GetString(char *str)
 {
@@ -270,52 +483,58 @@ cystatus `$INSTANCE_NAME`_GetString(char *str)
 	result = CYRET_STARTED;
 	idx = 0;
 	
-	ch = `$INSTANCE_NAME`_GetChar();
-	/* 
-	 * While there are no EOL character read, read the data fro mthe queue,
-	 * and take a peek at the next data in the buffer.
-	 */
-	while ( (ch != '\r') && (ch != '\n') ) {
-		/*
-		 * When a backspace has been read, remove the last read character
-		 * from the input buffer, and output a destructive backspace character
-		 * so that the terminal will clear the character from the display.
+	xSemaphoreTake( `$INSTANCE_NAME`_Mutex, portMAX_DELAY);
+	{
+		ch = `$INSTANCE_NAME`_GetChar();
+		/* 
+		 * While there are no EOL character read, read the data fro mthe queue,
+		 * and take a peek at the next data in the buffer.
 		 */
-		if ( (ch == '\b') || (ch == 127) ) {
+		while ( (ch != '\r') && (ch != '\n') ) {
+			/*
+			 * When a backspace has been read, remove the last read character
+			 * from the input buffer, and output a destructive backspace character
+			 * so that the terminal will clear the character from the display.
+			 */
+			if ( (ch == '\b') || (ch == 127) ) {
+				str[idx] = 0;
+				if (idx>0) {
+					idx--;
+				}
+				`$INSTANCE_NAME`_PutChar('\b');
+				`$INSTANCE_NAME`_PutChar(' ');
+				`$INSTANCE_NAME`_PutChar('\b');
+				ch = `$INSTANCE_NAME`_GetChar();
+			}
+			/*
+			 * When a newline is read, push the character back in to the
+			 * queue, since we don't want it, and don't read anymore data
+			 * from the queue.
+			 */
+			else if ((ch!='\r')&&(ch!='\n')) {
+				str[idx++] = ch;
+				`$INSTANCE_NAME`_PutChar( ch );
+				ch = `$INSTANCE_NAME`_GetChar();
+			}
 			str[idx] = 0;
-			if (idx>0) {
-				idx--;
-			}
-			`$INSTANCE_NAME`_PrintString("\b \b");
-			ch = `$INSTANCE_NAME`_GetChar();
 		}
+		
 		/*
-		 * When a newline is read, push the character back in to the
-		 * queue, since we don't want it, and don't read anymore data
-		 * from the queue.
+		 * Remove the lingering EOL characters from the queue to prepare reading
+		 * of the next string.
 		 */
-		else if ((ch!='\r')&&(ch!='\n')) {
-			str[idx++] = ch;
-			`$INSTANCE_NAME`_PutChar( ch );
-			ch = `$INSTANCE_NAME`_GetChar();
-		}
-		str[idx] = 0;
-	}
-	
-	/*
-	 * Remove the lingering EOL characters from the queue to prepare reading
-	 * of the next string.
-	 */
-	if ( (ch == '\r') || (ch == '\n') ) {
-		while( ((ch == '\r') || (ch == '\n')) && (uxQueueMessagesWaiting(`$INSTANCE_NAME`_RxQ) > 0) )
-		{
-			ch = `$INSTANCE_NAME`_GetChar(); /* Remove the EOL character from buffer */
-			if ( (ch != '\r') && (ch != '\n') ) {
-				xQueueSendToFront( `$INSTANCE_NAME`_RxQ, &ch, 0);
+		if ( (ch == '\r') || (ch == '\n') ) {
+			while( ((ch == '\r') || (ch == '\n')) && (uxQueueMessagesWaiting(`$INSTANCE_NAME`_RxQ) > 0) )
+			{
+				ch = `$INSTANCE_NAME`_GetChar(); /* Remove the EOL character from buffer */
+				if ( (ch != '\r') && (ch != '\n') ) {
+					xQueueSendToFront( `$INSTANCE_NAME`_RxQ, &ch, 0);
+				}
 			}
+			result = CYRET_FINISHED;
 		}
-		result = CYRET_FINISHED;
 	}
+	xSemaphoreGive( `$INSTANCE_NAME`_Mutex );
 	return result;
 }
 /* ------------------------------------------------------------------------- */

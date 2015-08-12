@@ -52,7 +52,7 @@ cystatus `$INSTANCE_NAME`_PrintString( const char *str );
 cystatus `$INSTANCE_NAME`_SetColor( uint8 fg, uint8 bg );
 cystatus `$INSTANCE_NAME`_ClearLine(uint8 mode);
 cystatus `$INSTANCE_NAME`_Position(uint8 row, uint8 col);
-cystatus `$INSTANCE_NAME`_PrintStringColor(const char *str, uint8 fg, uint8 bg);
+//cystatus `$INSTANCE_NAME`_PrintStringColor(const char *str, uint8 fg, uint8 bg);
 cystatus `$INSTANCE_NAME`_GetString( char *str );
 uint16 `$INSTANCE_NAME`_ScanKey( void );
 
